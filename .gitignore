@@ -1,0 +1,23 @@
+# Python
+backend/.venv/
+backend/__pycache__/
+backend/**/__pycache__/
+backend/*.pyc
+backend/.env
+
+# Next.js
+frontend/.next/
+frontend/node_modules/
+frontend/.env.local
+
+# Cloned repos (temp)
+backend/repos/
+
+# OS
+.DS_Store
+
+# Claude Code
+.claude/
+
+# TypeScript build info
+frontend/tsconfig.tsbuildinfo
