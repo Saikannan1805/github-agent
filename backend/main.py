@@ -52,10 +52,6 @@ async def _cleanup_loop() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Pre-load the embedding model on startup so first request is fast
-    from services.embedder import _get_model
-    _get_model()
-
     # Start TTL-based session cleanup loop
     cleanup_task = asyncio.create_task(_cleanup_loop())
     yield

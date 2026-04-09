@@ -9,8 +9,7 @@ langchain-core==0.3.19
 langchain-groq==0.2.1
 langgraph==0.2.53
 
-# Embeddings (local, no API key needed)
-sentence-transformers==3.3.1
+# Embeddings (HuggingFace Inference API — no heavy torch dependency)
 
 # Supabase
 supabase==2.10.0
