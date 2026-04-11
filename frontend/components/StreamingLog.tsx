@@ -52,19 +52,29 @@ export default function StreamingLog({ events, phase }: Props) {
     }
   }, [events]);
 
-  // Compute step statuses
+  // Compute step statuses and progress
   const completedSteps = new Set<string>();
+  const stepProgress: Record<string, number> = {};
   let activeStep: string | null = null;
 
   for (const ev of events) {
-    if (ev.type === "progress" && ev.data.percent === 100) {
-      completedSteps.add(ev.data.step);
+    if (ev.type === "progress") {
+      stepProgress[ev.data.step] = ev.data.percent;
+      if (ev.data.percent === 100) completedSteps.add(ev.data.step);
     }
     if (ev.type === "step") {
       activeStep = ev.data.step;
     }
   }
   if (phase === "done") activeStep = null;
+
+  // Overall progress: each step = 100/6 points
+  const totalSteps = STEP_ORDER.length;
+  const overallProgress = phase === "done"
+    ? 100
+    : Math.round(
+        STEP_ORDER.reduce((acc, step) => acc + (stepProgress[step] ?? 0), 0) / totalSteps
+      );
 
   const logs = events.filter((e) => e.type === "log" || e.type === "step");
 
@@ -92,6 +102,22 @@ export default function StreamingLog({ events, phase }: Props) {
             Complete
           </span>
         )}
+      </div>
+
+      {/* Overall progress bar */}
+      <div className="px-5 py-3 border-b border-slate-700">
+        <div className="flex items-center justify-between mb-1.5">
+          <span className="text-xs text-slate-400">Overall Progress</span>
+          <span className="text-xs font-mono text-slate-300">{overallProgress}%</span>
+        </div>
+        <div className="w-full h-1.5 bg-slate-700 rounded-full overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all duration-500 ${
+              phase === "done" ? "bg-emerald-500" : "bg-sky-500"
+            }`}
+            style={{ width: `${overallProgress}%` }}
+          />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 divide-y lg:divide-y-0 lg:divide-x divide-slate-700">
