@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import RepoInput from "@/components/RepoInput";
 import StreamingLog from "@/components/StreamingLog";
 import ReportTabs from "@/components/ReportTabs";
@@ -24,6 +24,7 @@ export type Reports = {
 };
 
 type Phase = "idle" | "analyzing" | "done" | "error";
+type ServerStatus = "unknown" | "warming" | "ready";
 
 export default function HomePage() {
   const [phase, setPhase] = useState<Phase>("idle");
@@ -31,6 +32,23 @@ export default function HomePage() {
   const [events, setEvents] = useState<AnalysisEvent[]>([]);
   const [reports, setReports] = useState<Reports>({});
   const [errorMsg, setErrorMsg] = useState<string>("");
+  const [serverStatus, setServerStatus] = useState<ServerStatus>("unknown");
+
+  // Ping backend on page load to wake it up early
+  useEffect(() => {
+    setServerStatus("warming");
+    const ping = async () => {
+      try {
+        await fetch(`${API}/health`);
+        setServerStatus("ready");
+      } catch {
+        setServerStatus("warming");
+        // retry after 10s if it fails
+        setTimeout(ping, 10000);
+      }
+    };
+    ping();
+  }, []);
 
   const handleAnalyze = useCallback(async (repoUrl: string) => {
     setPhase("analyzing");
@@ -104,6 +122,20 @@ export default function HomePage() {
 
   return (
     <div className="space-y-8">
+      {/* Server warm-up indicator */}
+      {serverStatus === "warming" && (
+        <div className="flex items-center justify-center gap-2 text-xs text-amber-400 bg-amber-950/30 border border-amber-500/20 rounded-lg px-4 py-2 animate-pulse w-fit mx-auto">
+          <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping inline-block" />
+          Warming up server — first analysis may take a moment...
+        </div>
+      )}
+      {serverStatus === "ready" && phase === "idle" && (
+        <div className="flex items-center justify-center gap-2 text-xs text-emerald-400 bg-emerald-950/30 border border-emerald-500/20 rounded-lg px-4 py-2 w-fit mx-auto">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />
+          Server ready
+        </div>
+      )}
+
       {/* Hero */}
       {phase === "idle" && (
         <div className="text-center py-8 animate-slide-in">
