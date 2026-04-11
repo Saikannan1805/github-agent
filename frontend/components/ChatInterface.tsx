@@ -59,6 +59,9 @@ export default function ChatInterface({ sessionId, apiUrl }: Props) {
         }),
       });
 
+      if (res.status === 410) {
+        throw new Error("SESSION_EXPIRED");
+      }
       if (!res.ok) {
         const err = await res.json();
         throw new Error(err.detail || "Chat request failed");
@@ -70,11 +73,14 @@ export default function ChatInterface({ sessionId, apiUrl }: Props) {
         { role: "assistant", content: data.answer },
       ]);
     } catch (err: unknown) {
+      const isExpired = err instanceof Error && err.message === "SESSION_EXPIRED";
       setMessages((prev) => [
         ...prev,
         {
           role: "assistant",
-          content: `Error: ${err instanceof Error ? err.message : String(err)}`,
+          content: isExpired
+            ? "Session expired — your analysis data was cleaned up after 2 hours. Please paste the repo URL again and re-analyze to continue chatting."
+            : `Error: ${err instanceof Error ? err.message : String(err)}`,
         },
       ]);
     } finally {

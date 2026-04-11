@@ -175,7 +175,7 @@ async def chat(req: ChatRequest):
     """RAG-powered Q&A about the repository."""
     status = get_status(req.session_id)
     if status == "unknown":
-        raise HTTPException(404, "Session not found — run /analyze first")
+        raise HTTPException(410, "Session expired — please re-analyze the repository to continue chatting")
     if status == "running":
         raise HTTPException(409, "Analysis still running — wait for completion")
 
