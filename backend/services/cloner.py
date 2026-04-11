@@ -26,7 +26,9 @@ EXCLUDE_DIRS = {
     ".vscode", "out", "tmp", "temp", "logs",
 }
 
-MAX_FILE_SIZE = 300 * 1024  # 300 KB
+MAX_FILE_SIZE = 500 * 1024   # 500 KB per file
+MAX_FILES = 500              # max files to analyze
+MAX_TOTAL_LINES = 100_000    # max total lines of code
 
 
 async def clone_repo(repo_url: str, session_id: str) -> tuple[str, list[dict]]:
@@ -54,6 +56,22 @@ async def clone_repo(repo_url: str, session_id: str) -> tuple[str, list[dict]]:
         raise RuntimeError(f"git clone failed: {proc.stderr.strip()}")
 
     files, failed = await _collect_files(clone_path)
+
+    # Validate repo size after collection
+    total_lines = sum(f["lines"] for f in files)
+    if len(files) > MAX_FILES:
+        cleanup_repo(session_id)
+        raise ValueError(
+            f"Repo too large — {len(files)} files found (max {MAX_FILES}). "
+            "Try a smaller or more focused repository."
+        )
+    if total_lines > MAX_TOTAL_LINES:
+        cleanup_repo(session_id)
+        raise ValueError(
+            f"Repo too large — {total_lines:,} lines of code (max {MAX_TOTAL_LINES:,}). "
+            "Try a smaller or more focused repository."
+        )
+
     return clone_path, files, failed
 
 
