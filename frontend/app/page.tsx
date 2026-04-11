@@ -7,6 +7,7 @@ import ReportTabs from "@/components/ReportTabs";
 import ChatInterface from "@/components/ChatInterface";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const STORAGE_KEY = "github_analyzer_session";
 
 export type AnalysisEvent =
   | { type: "step"; data: { step: string; message: string } }
@@ -34,6 +35,23 @@ export default function HomePage() {
   const [errorMsg, setErrorMsg] = useState<string>("");
   const [serverStatus, setServerStatus] = useState<ServerStatus>("unknown");
 
+  // Restore last session from localStorage on page load
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const { sessionId: sid, reports: savedReports } = JSON.parse(saved);
+        if (sid && savedReports && Object.keys(savedReports).length > 0) {
+          setSessionId(sid);
+          setReports(savedReports);
+          setPhase("done");
+        }
+      }
+    } catch {
+      // ignore corrupt storage
+    }
+  }, []);
+
   // Ping backend on page load to wake it up early
   useEffect(() => {
     setServerStatus("warming");
@@ -43,7 +61,6 @@ export default function HomePage() {
         setServerStatus("ready");
       } catch {
         setServerStatus("warming");
-        // retry after 10s if it fails
         setTimeout(ping, 10000);
       }
     };
@@ -56,6 +73,7 @@ export default function HomePage() {
     setReports({});
     setErrorMsg("");
     setSessionId(null);
+    try { localStorage.removeItem(STORAGE_KEY); } catch {}
 
     try {
       // 1. Start analysis
@@ -90,6 +108,13 @@ export default function HomePage() {
           handled = true;
           setPhase("done");
           es.close();
+          // Persist session to localStorage so reports survive a refresh
+          setReports((prev) => {
+            try {
+              localStorage.setItem(STORAGE_KEY, JSON.stringify({ sessionId: session_id, reports: prev }));
+            } catch {}
+            return prev;
+          });
         }
 
         if (event.type === "error") {
