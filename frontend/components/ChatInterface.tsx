@@ -23,14 +23,22 @@ const SUGGESTIONS = [
   "What testing frameworks are used?",
 ];
 
+const INITIAL_MESSAGE: Message = {
+  role: "assistant",
+  content:
+    "Hi! I've analyzed this repository. Ask me anything about the codebase — I can find specific functions, explain patterns, or answer architecture questions with exact file and line references.",
+};
+
 export default function ChatInterface({ sessionId, apiUrl }: Props) {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      role: "assistant",
-      content:
-        "Hi! I've analyzed this repository. Ask me anything about the codebase — I can find specific functions, explain patterns, or answer architecture questions with exact file and line references.",
-    },
-  ]);
+  const storageKey = `chat_history_${sessionId}`;
+
+  const [messages, setMessages] = useState<Message[]>(() => {
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return [INITIAL_MESSAGE];
+  });
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -39,6 +47,12 @@ export default function ChatInterface({ sessionId, apiUrl }: Props) {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(messages));
+    } catch {}
+  }, [messages, storageKey]);
 
   const sendMessage = async (question: string) => {
     if (!question.trim() || isLoading) return;

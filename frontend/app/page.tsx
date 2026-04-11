@@ -200,8 +200,8 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* Chat — show if analysis finished or errored mid-way (chunks are still in DB) */}
-      {sessionId && (phase === "done" || phase === "error") && (
+      {/* Chat — only show when analysis fully completed */}
+      {sessionId && phase === "done" && (
         <div className="animate-slide-in">
           <ChatInterface sessionId={sessionId} apiUrl={API} />
         </div>
