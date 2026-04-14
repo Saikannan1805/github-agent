@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import RepoInput from "@/components/RepoInput";
 import StreamingLog from "@/components/StreamingLog";
 import ReportTabs from "@/components/ReportTabs";
@@ -38,6 +38,7 @@ export default function HomePage() {
   const [reports, setReports] = useState<Reports>({});
   const [errorMsg, setErrorMsg] = useState<string>("");
   const [serverStatus, setServerStatus] = useState<ServerStatus>("unknown");
+  const serverStatusRef = useRef<ServerStatus>("unknown");
   const [submittedUrl, setSubmittedUrl] = useState<string>("");
   const [queuedUrl, setQueuedUrl] = useState<string>("");
   const [showAbout, setShowAbout] = useState(false);
@@ -69,12 +70,24 @@ export default function HomePage() {
   useEffect(() => {
     setServerStatus("warming");
     const ping = async () => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000); // 8s timeout
       try {
-        await fetch(`${API}/health`);
-        setServerStatus("ready");
+        const res = await fetch(`${API}/health`, { signal: controller.signal });
+        clearTimeout(timeout);
+        if (res.ok) {
+          serverStatusRef.current = "ready";
+          setServerStatus("ready");
+        } else {
+          serverStatusRef.current = "warming";
+          setServerStatus("warming");
+          setTimeout(ping, 5000);
+        }
       } catch {
+        clearTimeout(timeout);
+        serverStatusRef.current = "warming";
         setServerStatus("warming");
-        setTimeout(ping, 10000);
+        setTimeout(ping, 5000); // retry every 5s instead of 10s
       }
     };
     ping();
@@ -101,7 +114,7 @@ export default function HomePage() {
   }, []);
 
   const handleAnalyze = useCallback(async (repoUrl: string) => {
-    if (serverStatus !== "ready") {
+    if (serverStatusRef.current !== "ready") {
       setQueuedUrl(repoUrl);
       setSubmittedUrl(repoUrl);
       setPhase("queued");
