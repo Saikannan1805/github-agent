@@ -11,11 +11,43 @@ interface Props {
 
 type TabKey = "architecture" | "security" | "quality" | "readme";
 
-const TABS: { key: TabKey; label: string; icon: string }[] = [
-  { key: "architecture", label: "Architecture", icon: "🏗️" },
-  { key: "security", label: "Security", icon: "🔒" },
-  { key: "quality", label: "Code Quality", icon: "📊" },
-  { key: "readme", label: "Auto README", icon: "📝" },
+const TABS: { key: TabKey; label: string; icon: React.ReactNode }[] = [
+  {
+    key: "architecture",
+    label: "Architecture",
+    icon: (
+      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+      </svg>
+    ),
+  },
+  {
+    key: "security",
+    label: "Security",
+    icon: (
+      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+      </svg>
+    ),
+  },
+  {
+    key: "quality",
+    label: "Code Quality",
+    icon: (
+      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+      </svg>
+    ),
+  },
+  {
+    key: "readme",
+    label: "Auto README",
+    icon: (
+      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      </svg>
+    ),
+  },
 ];
 
 // ---- Sub-components ----
@@ -40,15 +72,23 @@ function SeverityBadge({ level }: { level: string }) {
 
 function RiskBadge({ level }: { level: string }) {
   const colors: Record<string, string> = {
-    CRITICAL: "text-red-400 bg-red-950/60 border-red-500/40",
-    HIGH: "text-orange-400 bg-orange-950/60 border-orange-500/40",
-    MEDIUM: "text-yellow-400 bg-yellow-950/60 border-yellow-500/40",
-    LOW: "text-blue-400 bg-blue-950/60 border-blue-500/40",
-    CLEAN: "text-emerald-400 bg-emerald-950/60 border-emerald-500/40",
+    CRITICAL: "text-red-400 border-red-500/30",
+    HIGH: "text-orange-400 border-orange-500/30",
+    MEDIUM: "text-yellow-400 border-yellow-500/30",
+    LOW: "text-blue-400 border-blue-500/30",
+    CLEAN: "text-emerald-400 border-emerald-500/30",
+  };
+  const bg: Record<string, string> = {
+    CRITICAL: "rgba(220,38,38,0.1)",
+    HIGH: "rgba(234,88,12,0.1)",
+    MEDIUM: "rgba(202,138,4,0.1)",
+    LOW: "rgba(37,99,235,0.1)",
+    CLEAN: "rgba(16,185,129,0.1)",
   };
   return (
     <span
       className={`px-3 py-1 rounded-full text-sm font-bold border ${colors[level] || colors.CLEAN}`}
+      style={{ background: bg[level] || bg.CLEAN }}
     >
       {level}
     </span>
@@ -56,19 +96,37 @@ function RiskBadge({ level }: { level: string }) {
 }
 
 function GradeCircle({ grade, score }: { grade: string; score: number }) {
-  const colors: Record<string, string> = {
-    A: "text-emerald-400 border-emerald-500",
-    B: "text-sky-400 border-sky-500",
-    C: "text-yellow-400 border-yellow-500",
-    D: "text-orange-400 border-orange-500",
-    F: "text-red-400 border-red-500",
+  const colors: Record<string, { text: string; border: string; glow: string }> = {
+    A: { text: "text-emerald-400", border: "rgba(16,185,129,0.5)", glow: "rgba(16,185,129,0.15)" },
+    B: { text: "text-blue-400", border: "rgba(59,130,246,0.5)", glow: "rgba(59,130,246,0.15)" },
+    C: { text: "text-yellow-400", border: "rgba(202,138,4,0.5)", glow: "rgba(202,138,4,0.15)" },
+    D: { text: "text-orange-400", border: "rgba(234,88,12,0.5)", glow: "rgba(234,88,12,0.15)" },
+    F: { text: "text-red-400", border: "rgba(220,38,38,0.5)", glow: "rgba(220,38,38,0.15)" },
   };
+  const c = colors[grade] || colors.F;
   return (
     <div
-      className={`w-16 h-16 rounded-full border-4 flex flex-col items-center justify-center ${colors[grade] || colors.F}`}
+      className={`w-16 h-16 rounded-full flex flex-col items-center justify-center shrink-0 ${c.text}`}
+      style={{
+        border: `3px solid ${c.border}`,
+        background: c.glow,
+        boxShadow: `0 0 20px ${c.glow}`,
+      }}
     >
-      <span className="text-2xl font-bold">{grade}</span>
-      <span className="text-[10px] opacity-70">{score}/100</span>
+      <span className="text-2xl font-bold leading-none">{grade}</span>
+      <span className="text-[10px] opacity-60 mt-0.5">{score}/100</span>
+    </div>
+  );
+}
+
+function StatCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div
+      className="rounded-xl p-3 text-center"
+      style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}
+    >
+      <div className="text-xl font-bold text-white">{value}</div>
+      <div className="text-xs text-slate-500 mt-0.5">{label}</div>
     </div>
   );
 }
@@ -77,7 +135,6 @@ function GradeCircle({ grade, score }: { grade: string; score: number }) {
 function ArchitectureTab({ data }: { data: Record<string, any> }) {
   return (
     <div className="space-y-6">
-      {/* Stats cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
           { label: "Files", value: (data.stats as Record<string, unknown>)?.total_files },
@@ -85,22 +142,22 @@ function ArchitectureTab({ data }: { data: Record<string, any> }) {
           { label: "Size", value: `${(data.stats as Record<string, unknown>)?.total_size_kb} KB` },
           { label: "Frameworks", value: (data.frameworks as string[])?.length || 0 },
         ].map(({ label, value }) => (
-          <div key={label} className="bg-slate-800 rounded-xl p-3 text-center">
-            <div className="text-xl font-bold text-slate-100">{String(value ?? "—")}</div>
-            <div className="text-xs text-slate-400 mt-0.5">{label}</div>
-          </div>
+          <StatCard key={label} label={label} value={String(value ?? "—")} />
         ))}
       </div>
 
-      {/* Languages */}
       {data.languages && (
         <div>
-          <h3 className="text-sm font-medium text-slate-400 mb-2">Languages</h3>
+          <h3 className="text-xs text-slate-500 font-medium uppercase tracking-widest mb-3">Languages</h3>
           <div className="flex flex-wrap gap-2">
             {Object.entries(data.languages as Record<string, number>)
               .slice(0, 10)
               .map(([lang, lines]) => (
-                <span key={lang} className="px-2.5 py-1 rounded-full bg-sky-500/10 border border-sky-500/30 text-sky-300 text-xs">
+                <span
+                  key={lang}
+                  className="px-2.5 py-1 rounded-full text-blue-300 text-xs"
+                  style={{ background: "rgba(59,130,246,0.1)", border: "1px solid rgba(59,130,246,0.2)" }}
+                >
                   {lang} · {lines.toLocaleString()} lines
                 </span>
               ))}
@@ -108,13 +165,16 @@ function ArchitectureTab({ data }: { data: Record<string, any> }) {
         </div>
       )}
 
-      {/* Frameworks */}
       {(data.frameworks as string[])?.length > 0 && (
         <div>
-          <h3 className="text-sm font-medium text-slate-400 mb-2">Frameworks & Libraries</h3>
+          <h3 className="text-xs text-slate-500 font-medium uppercase tracking-widest mb-3">Frameworks & Libraries</h3>
           <div className="flex flex-wrap gap-2">
             {(data.frameworks as string[]).map((f) => (
-              <span key={f} className="px-2.5 py-1 rounded-full bg-purple-500/10 border border-purple-500/30 text-purple-300 text-xs">
+              <span
+                key={f}
+                className="px-2.5 py-1 rounded-full text-purple-300 text-xs"
+                style={{ background: "rgba(139,92,246,0.1)", border: "1px solid rgba(139,92,246,0.2)" }}
+              >
                 {f}
               </span>
             ))}
@@ -122,38 +182,39 @@ function ArchitectureTab({ data }: { data: Record<string, any> }) {
         </div>
       )}
 
-      {/* Patterns */}
       {(data.patterns as string[])?.length > 0 && (
         <div>
-          <h3 className="text-sm font-medium text-slate-400 mb-2">Detected Patterns</h3>
-          <ul className="space-y-1">
+          <h3 className="text-xs text-slate-500 font-medium uppercase tracking-widest mb-3">Detected Patterns</h3>
+          <ul className="space-y-1.5">
             {(data.patterns as string[]).map((p) => (
               <li key={p} className="text-sm text-slate-300 flex items-center gap-2">
-                <span className="text-emerald-400">✓</span> {p}
+                <span className="text-emerald-400 text-xs">✓</span> {p}
               </li>
             ))}
           </ul>
         </div>
       )}
 
-      {/* Folder tree */}
       {data.folder_tree && (
         <div>
-          <h3 className="text-sm font-medium text-slate-400 mb-2">Folder Structure</h3>
-          <pre className="bg-slate-800 border border-slate-700 rounded-xl p-4 text-xs text-slate-300 overflow-x-auto max-h-48">
+          <h3 className="text-xs text-slate-500 font-medium uppercase tracking-widest mb-3">Folder Structure</h3>
+          <pre
+            className="rounded-xl p-4 text-xs text-slate-400 overflow-x-auto max-h-48"
+            style={{ background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.06)" }}
+          >
             {String(data.folder_tree)}
           </pre>
         </div>
       )}
 
-      {/* AI Analysis */}
       {data.ai_analysis && (
         <div>
-          <h3 className="text-sm font-medium text-slate-400 mb-3">AI Analysis</h3>
-          <div className="bg-slate-800/60 border border-slate-700 rounded-xl p-5 prose-dark">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-              {String(data.ai_analysis)}
-            </ReactMarkdown>
+          <h3 className="text-xs text-slate-500 font-medium uppercase tracking-widest mb-3">AI Analysis</h3>
+          <div
+            className="rounded-xl p-5 prose-dark"
+            style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}
+          >
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{String(data.ai_analysis)}</ReactMarkdown>
           </div>
         </div>
       )}
@@ -169,8 +230,7 @@ function SecurityTab({ data }: { data: Record<string, any> }) {
 
   return (
     <div className="space-y-6">
-      {/* Risk overview */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4 flex-wrap">
         <RiskBadge level={riskLevel} />
         <div className="flex gap-4 text-sm">
           <span className="text-red-400">{counts?.critical || 0} Critical</span>
@@ -178,36 +238,37 @@ function SecurityTab({ data }: { data: Record<string, any> }) {
           <span className="text-yellow-400">{counts?.medium || 0} Medium</span>
           <span className="text-blue-400">{counts?.low || 0} Low</span>
         </div>
-        <span className="ml-auto text-slate-400 text-sm">
-          Risk Score: <strong className="text-slate-200">{String(data.risk_score)}/100</strong>
+        <span className="ml-auto text-slate-500 text-sm">
+          Risk Score: <strong className="text-slate-300">{String(data.risk_score)}/100</strong>
         </span>
       </div>
 
-      {/* Findings */}
       {findings?.length > 0 ? (
         <div className="space-y-2">
-          <h3 className="text-sm font-medium text-slate-400 mb-2">
+          <h3 className="text-xs text-slate-500 font-medium uppercase tracking-widest mb-3">
             Findings ({data.total_findings as number})
           </h3>
           {findings.map((f, i) => (
             <div
               key={i}
-              className="bg-slate-800 border border-slate-700 rounded-xl p-4 space-y-2 animate-slide-in"
+              className="rounded-xl p-4 space-y-2 animate-slide-in"
+              style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-2">
                   <SeverityBadge level={f.severity as string} />
-                  <span className="text-sm font-medium text-slate-200">
-                    {f.category as string}
-                  </span>
+                  <span className="text-sm font-medium text-slate-200">{f.category as string}</span>
                 </div>
-                <span className="text-xs text-slate-500 shrink-0">
+                <span className="text-xs text-slate-600 shrink-0">
                   {f.file_path as string}:{f.line_number as number}
                 </span>
               </div>
-              <p className="text-xs text-slate-400">{f.description as string}</p>
+              <p className="text-xs text-slate-500">{f.description as string}</p>
               {Boolean(f.line_content) && (
-                <code className="block text-xs text-slate-300 bg-slate-900 rounded px-3 py-2 overflow-x-auto">
+                <code
+                  className="block text-xs text-slate-400 rounded-lg px-3 py-2 overflow-x-auto"
+                  style={{ background: "rgba(0,0,0,0.3)" }}
+                >
                   {f.line_content as string}
                 </code>
               )}
@@ -215,19 +276,22 @@ function SecurityTab({ data }: { data: Record<string, any> }) {
           ))}
         </div>
       ) : (
-        <div className="text-emerald-400 bg-emerald-950/30 border border-emerald-500/30 rounded-xl p-5 text-center">
-          No security issues found! 🎉
+        <div
+          className="text-emerald-400 rounded-xl p-5 text-center text-sm"
+          style={{ background: "rgba(16,185,129,0.07)", border: "1px solid rgba(16,185,129,0.2)" }}
+        >
+          No security issues found — clean codebase ✓
         </div>
       )}
 
-      {/* AI Analysis */}
       {data.ai_analysis && (
         <div>
-          <h3 className="text-sm font-medium text-slate-400 mb-3">AI Security Assessment</h3>
-          <div className="bg-slate-800/60 border border-slate-700 rounded-xl p-5 prose-dark">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-              {String(data.ai_analysis)}
-            </ReactMarkdown>
+          <h3 className="text-xs text-slate-500 font-medium uppercase tracking-widest mb-3">AI Security Assessment</h3>
+          <div
+            className="rounded-xl p-5 prose-dark"
+            style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}
+          >
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{String(data.ai_analysis)}</ReactMarkdown>
           </div>
         </div>
       )}
@@ -241,7 +305,6 @@ function QualityTab({ data }: { data: Record<string, any> }) {
 
   return (
     <div className="space-y-6">
-      {/* Grade + metrics */}
       <div className="flex items-start gap-6 flex-wrap">
         <GradeCircle
           grade={summary?.quality_grade as string || "?"}
@@ -256,25 +319,25 @@ function QualityTab({ data }: { data: Record<string, any> }) {
             { label: "Test Ratio", value: `${((summary?.test_coverage_ratio as number || 0) * 100).toFixed(0)}%` },
             { label: "Comment Ratio", value: `${((summary?.avg_comment_ratio as number || 0) * 100).toFixed(0)}%` },
           ].map(({ label, value }) => (
-            <div key={label} className="bg-slate-800 rounded-lg p-3">
-              <div className="text-lg font-bold text-slate-100">{String(value ?? "—")}</div>
-              <div className="text-xs text-slate-400">{label}</div>
-            </div>
+            <StatCard key={label} label={label} value={String(value ?? "—")} />
           ))}
         </div>
       </div>
 
-      {/* Complexity */}
       {data.complexity_distribution && (
         <div>
-          <h3 className="text-sm font-medium text-slate-400 mb-2">Complexity Distribution</h3>
+          <h3 className="text-xs text-slate-500 font-medium uppercase tracking-widest mb-3">Complexity Distribution</h3>
           <div className="flex gap-3 flex-wrap">
             {Object.entries(data.complexity_distribution as Record<string, number>).map(
               ([level, count]) =>
                 count > 0 ? (
-                  <div key={level} className="bg-slate-800 rounded-lg px-3 py-2 text-center">
+                  <div
+                    key={level}
+                    className="rounded-xl px-3 py-2 text-center"
+                    style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}
+                  >
                     <div className="text-sm font-bold text-slate-200">{count}</div>
-                    <div className="text-xs text-slate-400">{level}</div>
+                    <div className="text-xs text-slate-500">{level}</div>
                   </div>
                 ) : null
             )}
@@ -282,29 +345,32 @@ function QualityTab({ data }: { data: Record<string, any> }) {
         </div>
       )}
 
-      {/* Largest files */}
       {(data.largest_files as Array<{ path: string; lines: number }>)?.length > 0 && (
         <div>
-          <h3 className="text-sm font-medium text-slate-400 mb-2">Largest Files</h3>
+          <h3 className="text-xs text-slate-500 font-medium uppercase tracking-widest mb-3">Largest Files</h3>
           <div className="space-y-1.5">
             {(data.largest_files as Array<{ path: string; lines: number }>).map((f, i) => (
-              <div key={i} className="flex justify-between text-sm bg-slate-800 rounded-lg px-3 py-2">
-                <code className="text-slate-300 text-xs truncate max-w-xs">{f.path}</code>
-                <span className="text-slate-400 shrink-0">{f.lines.toLocaleString()} lines</span>
+              <div
+                key={i}
+                className="flex justify-between text-sm rounded-lg px-3 py-2"
+                style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)" }}
+              >
+                <code className="text-slate-400 text-xs truncate max-w-xs">{f.path}</code>
+                <span className="text-slate-600 shrink-0 text-xs">{f.lines.toLocaleString()} lines</span>
               </div>
             ))}
           </div>
         </div>
       )}
 
-      {/* AI Analysis */}
       {data.ai_analysis && (
         <div>
-          <h3 className="text-sm font-medium text-slate-400 mb-3">AI Quality Assessment</h3>
-          <div className="bg-slate-800/60 border border-slate-700 rounded-xl p-5 prose-dark">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-              {String(data.ai_analysis)}
-            </ReactMarkdown>
+          <h3 className="text-xs text-slate-500 font-medium uppercase tracking-widest mb-3">AI Quality Assessment</h3>
+          <div
+            className="rounded-xl p-5 prose-dark"
+            style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}
+          >
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{String(data.ai_analysis)}</ReactMarkdown>
           </div>
         </div>
       )}
@@ -327,17 +393,21 @@ function ReadmeTab({ data }: { data: Record<string, any> }) {
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <p className="text-sm text-slate-400">
+        <p className="text-sm text-slate-500">
           Generated README · {data.word_count as number} words
         </p>
         <button
           onClick={copy}
-          className="text-xs px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-slate-300 transition"
+          className="text-xs px-3 py-1.5 rounded-lg text-slate-400 hover:text-slate-200 transition-colors"
+          style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
         >
           {copied ? "✓ Copied!" : "Copy Markdown"}
         </button>
       </div>
-      <div className="bg-slate-800/60 border border-slate-700 rounded-xl p-6 prose-dark max-h-[600px] overflow-y-auto">
+      <div
+        className="rounded-xl p-6 prose-dark max-h-[600px] overflow-y-auto"
+        style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}
+      >
         <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
       </div>
     </div>
@@ -354,20 +424,33 @@ export default function ReportTabs({ reports }: Props) {
   const currentData = reports[activeTab] as Record<string, any>;
 
   return (
-    <div className="bg-slate-900 border border-slate-700 rounded-2xl overflow-hidden shadow-xl">
+    <div className="glass rounded-2xl overflow-hidden">
       {/* Tab bar */}
-      <div className="flex overflow-x-auto border-b border-slate-700 bg-slate-800/50">
+      <div
+        className="flex overflow-x-auto"
+        style={{
+          background: "rgba(255,255,255,0.02)",
+          borderBottom: "1px solid rgba(255,255,255,0.06)",
+        }}
+      >
         {availableTabs.map((tab) => (
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
-            className={`flex items-center gap-2 px-5 py-3.5 text-sm font-medium whitespace-nowrap transition-colors border-b-2 ${
+            className={`flex items-center gap-2 px-5 py-3.5 text-sm font-medium whitespace-nowrap transition-all duration-200 border-b-2 ${
               activeTab === tab.key
-                ? "border-sky-500 text-sky-400 bg-slate-900/60"
-                : "border-transparent text-slate-400 hover:text-slate-200"
+                ? "text-white border-blue-500"
+                : "text-slate-500 border-transparent hover:text-slate-300"
             }`}
+            style={activeTab === tab.key ? { background: "rgba(59,130,246,0.06)" } : {}}
           >
-            <span>{tab.icon}</span>
+            <span
+              className={`transition-colors ${
+                activeTab === tab.key ? "text-blue-400" : "text-slate-600"
+              }`}
+            >
+              {tab.icon}
+            </span>
             {tab.label}
           </button>
         ))}

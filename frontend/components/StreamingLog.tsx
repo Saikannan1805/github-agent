@@ -22,7 +22,13 @@ const STEP_ORDER = ["cloning", "embedding", "architecture", "security", "quality
 function StepIcon({ status }: { status: "pending" | "active" | "done" }) {
   if (status === "done") {
     return (
-      <span className="w-5 h-5 rounded-full bg-emerald-500/20 border border-emerald-500 flex items-center justify-center">
+      <span
+        className="w-5 h-5 rounded-full flex items-center justify-center shrink-0"
+        style={{
+          background: "rgba(16,185,129,0.15)",
+          border: "1px solid rgba(16,185,129,0.4)",
+        }}
+      >
         <svg className="w-3 h-3 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
         </svg>
@@ -31,14 +37,26 @@ function StepIcon({ status }: { status: "pending" | "active" | "done" }) {
   }
   if (status === "active") {
     return (
-      <span className="w-5 h-5 rounded-full bg-sky-500/20 border border-sky-500 flex items-center justify-center">
-        <span className="w-2 h-2 rounded-full bg-sky-400 animate-pulse" />
+      <span
+        className="w-5 h-5 rounded-full flex items-center justify-center shrink-0"
+        style={{
+          background: "rgba(59,130,246,0.15)",
+          border: "1px solid rgba(59,130,246,0.5)",
+        }}
+      >
+        <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
       </span>
     );
   }
   return (
-    <span className="w-5 h-5 rounded-full bg-slate-700 border border-slate-600 flex items-center justify-center">
-      <span className="w-2 h-2 rounded-full bg-slate-500" />
+    <span
+      className="w-5 h-5 rounded-full flex items-center justify-center shrink-0"
+      style={{
+        background: "rgba(255,255,255,0.03)",
+        border: "1px solid rgba(255,255,255,0.1)",
+      }}
+    >
+      <span className="w-2 h-2 rounded-full bg-slate-600" />
     </span>
   );
 }
@@ -70,27 +88,31 @@ export default function StreamingLog({ events, phase }: Props) {
 
   // Overall progress: each step = 100/6 points
   const totalSteps = STEP_ORDER.length;
-  const overallProgress = phase === "done"
-    ? 100
-    : Math.round(
-        STEP_ORDER.reduce((acc, step) => acc + (stepProgress[step] ?? 0), 0) / totalSteps
-      );
+  const overallProgress =
+    phase === "done"
+      ? 100
+      : Math.round(
+          STEP_ORDER.reduce((acc, step) => acc + (stepProgress[step] ?? 0), 0) / totalSteps
+        );
 
   const logs = events.filter((e) => e.type === "log" || e.type === "step");
 
   return (
-    <div className="bg-slate-900 border border-slate-700 rounded-2xl overflow-hidden shadow-xl">
-      {/* Header */}
-      <div className="px-5 py-3 border-b border-slate-700 flex items-center gap-3">
+    <div className="glass rounded-2xl overflow-hidden">
+      {/* Header bar */}
+      <div
+        className="px-5 py-3 flex items-center gap-3"
+        style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}
+      >
         <div className="flex gap-1.5">
-          <span className="w-3 h-3 rounded-full bg-red-500/70" />
-          <span className="w-3 h-3 rounded-full bg-yellow-500/70" />
-          <span className="w-3 h-3 rounded-full bg-green-500/70" />
+          <span className="w-3 h-3 rounded-full bg-red-500/60" />
+          <span className="w-3 h-3 rounded-full bg-yellow-500/60" />
+          <span className="w-3 h-3 rounded-full bg-emerald-500/60" />
         </div>
-        <span className="text-slate-400 text-sm font-mono">agent.log</span>
+        <span className="text-slate-500 text-sm font-mono">analysis.log</span>
         {phase === "analyzing" && (
-          <span className="ml-auto text-xs text-sky-400 flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-sky-400 animate-pulse" />
+          <span className="ml-auto text-xs text-blue-400 flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
             Live
           </span>
         )}
@@ -105,26 +127,33 @@ export default function StreamingLog({ events, phase }: Props) {
       </div>
 
       {/* Overall progress bar */}
-      <div className="px-5 py-3 border-b border-slate-700">
-        <div className="flex items-center justify-between mb-1.5">
-          <span className="text-xs text-slate-400">Overall Progress</span>
-          <span className="text-xs font-mono text-slate-300">{overallProgress}%</span>
+      <div className="px-5 py-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-xs text-slate-500">Overall Progress</span>
+          <span className="text-xs font-mono text-slate-400">{overallProgress}%</span>
         </div>
-        <div className="w-full h-1.5 bg-slate-700 rounded-full overflow-hidden">
+        <div
+          className="w-full h-1 rounded-full overflow-hidden"
+          style={{ background: "rgba(255,255,255,0.06)" }}
+        >
           <div
-            className={`h-full rounded-full transition-all duration-500 ${
-              phase === "done" ? "bg-emerald-500" : "bg-sky-500"
-            }`}
-            style={{ width: `${overallProgress}%` }}
+            className="h-full rounded-full transition-all duration-700"
+            style={{
+              width: `${overallProgress}%`,
+              background:
+                phase === "done"
+                  ? "linear-gradient(90deg, #10b981, #34d399)"
+                  : "linear-gradient(90deg, #3b82f6, #6366f1)",
+            }}
           />
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 divide-y lg:divide-y-0 lg:divide-x divide-slate-700">
+      <div className="grid grid-cols-1 lg:grid-cols-3 divide-y lg:divide-y-0 lg:divide-x" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
         {/* Step tracker */}
-        <div className="p-5 space-y-2">
-          <p className="text-xs text-slate-500 font-medium uppercase tracking-wider mb-3">
-            Pipeline Steps
+        <div className="p-5 space-y-2.5">
+          <p className="text-xs text-slate-600 font-medium uppercase tracking-widest mb-4">
+            Pipeline
           </p>
           {STEP_ORDER.map((step) => {
             const status = completedSteps.has(step)
@@ -136,12 +165,12 @@ export default function StreamingLog({ events, phase }: Props) {
               <div key={step} className="flex items-center gap-2.5">
                 <StepIcon status={status} />
                 <span
-                  className={`text-sm ${
+                  className={`text-sm transition-colors ${
                     status === "done"
                       ? "text-emerald-400"
                       : status === "active"
-                      ? "text-sky-300 font-medium"
-                      : "text-slate-500"
+                      ? "text-blue-300 font-medium"
+                      : "text-slate-600"
                   }`}
                 >
                   {STEP_LABELS[step]}
@@ -160,14 +189,14 @@ export default function StreamingLog({ events, phase }: Props) {
             {logs.map((ev, i) => {
               if (ev.type === "step") {
                 return (
-                  <div key={i} className="text-sky-300 font-semibold animate-slide-in">
+                  <div key={i} className="text-blue-300 font-semibold animate-slide-in">
                     {">"} {ev.data.message}
                   </div>
                 );
               }
               if (ev.type === "log") {
                 return (
-                  <div key={i} className="text-slate-400 animate-slide-in">
+                  <div key={i} className="text-slate-500 animate-slide-in">
                     {"  "} {ev.data.message}
                   </div>
                 );
@@ -175,7 +204,7 @@ export default function StreamingLog({ events, phase }: Props) {
               return null;
             })}
             {phase === "analyzing" && (
-              <span className="text-slate-600 blink">█</span>
+              <span className="text-slate-700 blink">█</span>
             )}
           </div>
         </div>

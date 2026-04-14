@@ -69,7 +69,7 @@ export default function ChatInterface({ sessionId, apiUrl }: Props) {
         body: JSON.stringify({
           session_id: sessionId,
           question: question.trim(),
-          history: messages.slice(-8), // send last 4 exchanges for context
+          history: messages.slice(-8),
         }),
       });
 
@@ -116,15 +116,24 @@ export default function ChatInterface({ sessionId, apiUrl }: Props) {
   };
 
   return (
-    <div className="bg-slate-900 border border-slate-700 rounded-2xl overflow-hidden shadow-xl">
+    <div className="glass rounded-2xl overflow-hidden">
       {/* Header */}
-      <div className="px-5 py-4 border-b border-slate-700 flex items-center gap-3">
-        <div className="w-8 h-8 rounded-full bg-sky-500/20 border border-sky-500/40 flex items-center justify-center text-sky-400 text-sm">
-          🤖
+      <div
+        className="px-5 py-4 flex items-center gap-3"
+        style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}
+      >
+        <div
+          className="w-8 h-8 rounded-full flex items-center justify-center text-blue-300 text-sm shrink-0"
+          style={{
+            background: "rgba(59,130,246,0.15)",
+            border: "1px solid rgba(59,130,246,0.3)",
+          }}
+        >
+          ✦
         </div>
         <div>
           <h2 className="text-sm font-semibold text-slate-100">Chat with the Repo</h2>
-          <p className="text-xs text-slate-500">RAG-powered · answers with file citations</p>
+          <p className="text-xs text-slate-600">RAG-powered · answers with file citations</p>
         </div>
       </div>
 
@@ -138,16 +147,31 @@ export default function ChatInterface({ sessionId, apiUrl }: Props) {
             }`}
           >
             {msg.role === "assistant" && (
-              <div className="w-7 h-7 rounded-full bg-sky-500/20 border border-sky-500/40 flex items-center justify-center text-sm shrink-0 mt-0.5">
-                🤖
+              <div
+                className="w-7 h-7 rounded-full flex items-center justify-center text-blue-300 text-xs shrink-0 mt-0.5"
+                style={{
+                  background: "rgba(59,130,246,0.12)",
+                  border: "1px solid rgba(59,130,246,0.25)",
+                }}
+              >
+                ✦
               </div>
             )}
             <div
-              className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm ${
-                msg.role === "user"
-                  ? "bg-sky-600 text-white rounded-tr-sm"
-                  : "bg-slate-800 border border-slate-700 rounded-tl-sm"
+              className={`min-w-0 max-w-[80%] overflow-hidden rounded-2xl px-4 py-3 text-sm ${
+                msg.role === "user" ? "rounded-tr-sm" : "rounded-tl-sm"
               }`}
+              style={
+                msg.role === "user"
+                  ? {
+                      background: "linear-gradient(135deg, #2563eb, #4f46e5)",
+                      color: "white",
+                    }
+                  : {
+                      background: "rgba(255,255,255,0.04)",
+                      border: "1px solid rgba(255,255,255,0.07)",
+                    }
+              }
             >
               {msg.role === "assistant" ? (
                 <div className="prose-dark text-sm">
@@ -160,8 +184,14 @@ export default function ChatInterface({ sessionId, apiUrl }: Props) {
               )}
             </div>
             {msg.role === "user" && (
-              <div className="w-7 h-7 rounded-full bg-slate-700 border border-slate-600 flex items-center justify-center text-sm shrink-0 mt-0.5">
-                👤
+              <div
+                className="w-7 h-7 rounded-full flex items-center justify-center text-slate-400 text-xs shrink-0 mt-0.5"
+                style={{
+                  background: "rgba(255,255,255,0.05)",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                }}
+              >
+                you
               </div>
             )}
           </div>
@@ -169,15 +199,27 @@ export default function ChatInterface({ sessionId, apiUrl }: Props) {
 
         {isLoading && (
           <div className="flex gap-3 animate-slide-in">
-            <div className="w-7 h-7 rounded-full bg-sky-500/20 border border-sky-500/40 flex items-center justify-center text-sm shrink-0">
-              🤖
+            <div
+              className="w-7 h-7 rounded-full flex items-center justify-center text-blue-300 text-xs shrink-0"
+              style={{
+                background: "rgba(59,130,246,0.12)",
+                border: "1px solid rgba(59,130,246,0.25)",
+              }}
+            >
+              ✦
             </div>
-            <div className="bg-slate-800 border border-slate-700 rounded-2xl rounded-tl-sm px-4 py-3">
+            <div
+              className="rounded-2xl rounded-tl-sm px-4 py-3"
+              style={{
+                background: "rgba(255,255,255,0.04)",
+                border: "1px solid rgba(255,255,255,0.07)",
+              }}
+            >
               <div className="flex gap-1 items-center h-4">
                 {[0, 1, 2].map((i) => (
                   <span
                     key={i}
-                    className="w-2 h-2 rounded-full bg-sky-400"
+                    className="w-2 h-2 rounded-full bg-blue-400"
                     style={{ animation: `pulse 1.4s ease-in-out ${i * 0.2}s infinite` }}
                   />
                 ))}
@@ -192,14 +234,18 @@ export default function ChatInterface({ sessionId, apiUrl }: Props) {
       {/* Suggestions */}
       {messages.length === 1 && (
         <div className="px-5 pb-3">
-          <p className="text-xs text-slate-500 mb-2">Suggested questions:</p>
+          <p className="text-xs text-slate-600 mb-2">Suggested questions</p>
           <div className="flex flex-wrap gap-2">
             {SUGGESTIONS.map((s) => (
               <button
                 key={s}
                 onClick={() => sendMessage(s)}
                 disabled={isLoading}
-                className="text-xs px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-full text-slate-400 hover:text-slate-200 transition disabled:opacity-40"
+                className="text-xs px-3 py-1.5 rounded-full text-slate-500 hover:text-slate-300 transition-colors disabled:opacity-40"
+                style={{
+                  background: "rgba(255,255,255,0.03)",
+                  border: "1px solid rgba(255,255,255,0.07)",
+                }}
               >
                 {s}
               </button>
@@ -209,7 +255,7 @@ export default function ChatInterface({ sessionId, apiUrl }: Props) {
       )}
 
       {/* Input */}
-      <div className="p-4 border-t border-slate-700">
+      <div className="p-4" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
         <form onSubmit={handleSubmit} className="flex gap-3">
           <textarea
             ref={inputRef}
@@ -219,8 +265,21 @@ export default function ChatInterface({ sessionId, apiUrl }: Props) {
             placeholder="Ask anything about this repository… (Enter to send, Shift+Enter for newline)"
             rows={1}
             disabled={isLoading}
-            className="flex-1 bg-slate-800 border border-slate-600 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 resize-none disabled:opacity-50 transition"
-            style={{ minHeight: "44px", maxHeight: "120px" }}
+            className="flex-1 rounded-xl px-4 py-2.5 text-sm text-slate-100 placeholder-slate-600 outline-none resize-none disabled:opacity-50 transition-all duration-200"
+            style={{
+              background: "rgba(255,255,255,0.04)",
+              border: "1px solid rgba(255,255,255,0.08)",
+              minHeight: "44px",
+              maxHeight: "120px",
+            }}
+            onFocus={(e) => {
+              e.currentTarget.style.border = "1px solid rgba(59,130,246,0.4)";
+              e.currentTarget.style.boxShadow = "0 0 0 3px rgba(59,130,246,0.1)";
+            }}
+            onBlur={(e) => {
+              e.currentTarget.style.border = "1px solid rgba(255,255,255,0.08)";
+              e.currentTarget.style.boxShadow = "none";
+            }}
             onInput={(e) => {
               const t = e.currentTarget;
               t.style.height = "auto";
@@ -230,7 +289,7 @@ export default function ChatInterface({ sessionId, apiUrl }: Props) {
           <button
             type="submit"
             disabled={isLoading || !input.trim()}
-            className="w-11 h-11 rounded-xl bg-sky-600 hover:bg-sky-500 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center transition-colors shrink-0"
+            className="btn-primary w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
           >
             <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />

@@ -2,32 +2,50 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "GitHub Repo Analyzer",
+  title: "Gitwise — AI GitHub Analysis",
   description:
-    "AI-powered GitHub repository analysis: architecture, security, code quality, and RAG-powered chat.",
+    "Deep AI analysis of any GitHub repository. Architecture, security, code quality, and RAG-powered chat.",
+  icons: {
+    icon: "/icon.svg",
+    shortcut: "/icon.svg",
+    apple: "/icon.svg",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className="dark">
-      <body className="min-h-screen bg-slate-950 text-slate-100 antialiased">
-        <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-50">
-          <div className="max-w-7xl mx-auto px-4 h-14 flex items-center gap-3">
-            <div className="w-7 h-7 rounded-md bg-sky-500 flex items-center justify-center text-white font-bold text-sm">
-              G
-            </div>
-            <span className="font-semibold text-slate-100 tracking-tight">
-              GitHub Repo Analyzer
-            </span>
-            <span className="text-xs text-slate-500 ml-1 hidden sm:block">
-               AI-powered codebase intelligence
-            </span>
-          </div>
-        </header>
-        <main className="max-w-7xl mx-auto px-4 py-8">{children}</main>
-        <footer className="border-t border-slate-800 mt-16 py-6 text-center text-xs text-slate-600">
-          Powered by LangGraph · Groq · Supabase pgvector · Next.js
-        </footer>
+      <body className="min-h-screen bg-[#030712] text-slate-100 antialiased">
+{/* Ambient background glows — fixed so they stay as you scroll */}
+        <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none" aria-hidden>
+          <div
+            className="absolute -top-60 left-1/2 -translate-x-1/2 w-[900px] h-[600px] rounded-full"
+            style={{
+              background:
+                "radial-gradient(ellipse, rgba(37,99,235,0.12) 0%, transparent 70%)",
+              filter: "blur(40px)",
+            }}
+          />
+          <div
+            className="absolute top-1/2 -right-60 w-[600px] h-[600px] rounded-full"
+            style={{
+              background:
+                "radial-gradient(ellipse, rgba(109,40,217,0.08) 0%, transparent 70%)",
+              filter: "blur(60px)",
+            }}
+          />
+          <div
+            className="absolute bottom-0 left-0 w-[400px] h-[400px] rounded-full"
+            style={{
+              background:
+                "radial-gradient(ellipse, rgba(16,185,129,0.04) 0%, transparent 70%)",
+              filter: "blur(60px)",
+            }}
+          />
+        </div>
+
+        <main className="max-w-5xl mx-auto px-6 py-10">{children}</main>
+
       </body>
     </html>
   );
