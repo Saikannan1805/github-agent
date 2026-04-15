@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { Analytics } from "@vercel/analytics/react";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 export const metadata: Metadata = {
   title: "Gitwise — AI GitHub Analysis",
@@ -45,7 +47,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </div>
 
         <main className="max-w-5xl mx-auto px-6 py-10">{children}</main>
-
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );
