@@ -355,7 +355,7 @@ export default function HomePage() {
       {/* Reports */}
       {Object.keys(reports).length > 0 && (
         <div className="animate-slide-in">
-          <ReportTabs reports={reports} />
+          <ReportTabs reports={reports} repoUrl={submittedUrl} />
         </div>
       )}
 

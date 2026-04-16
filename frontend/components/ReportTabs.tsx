@@ -3,10 +3,12 @@
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import JSZip from "jszip";
 import type { Reports } from "@/app/page";
 
 interface Props {
   reports: Reports;
+  repoUrl?: string;
 }
 
 type TabKey = "architecture" | "security" | "quality" | "readme";
@@ -49,6 +51,187 @@ const TABS: { key: TabKey; label: string; icon: React.ReactNode }[] = [
     ),
   },
 ];
+
+// ---- Markdown formatters ----
+
+function repoName(repoUrl?: string): string {
+  if (!repoUrl) return "repo";
+  const parts = repoUrl.replace(/\/$/, "").split("/");
+  return parts[parts.length - 1] || "repo";
+}
+
+function formatArchitectureMd(data: Record<string, any>, repoUrl?: string): string {
+  const stats = data.stats as Record<string, unknown> || {};
+  const languages = data.languages as Record<string, number> || {};
+  const frameworks = (data.frameworks as string[]) || [];
+  const patterns = (data.patterns as string[]) || [];
+
+  const langLines = Object.entries(languages)
+    .map(([lang, lines]) => `| ${lang} | ${Number(lines).toLocaleString()} |`)
+    .join("\n");
+
+  const findingsList = patterns.map((p) => `- ${p}`).join("\n");
+
+  return `# Architecture Report — ${repoUrl || "Repository"}
+
+## Stats
+| Metric | Value |
+|---|---|
+| Files | ${stats.total_files ?? "—"} |
+| Lines of Code | ${Number(stats.total_lines ?? 0).toLocaleString()} |
+| Size | ${stats.total_size_kb ?? "—"} KB |
+
+## Languages
+| Language | Lines |
+|---|---|
+${langLines || "| — | — |"}
+
+## Frameworks & Libraries
+${frameworks.length > 0 ? frameworks.map((f) => `- ${f}`).join("\n") : "_None detected_"}
+
+## Detected Patterns
+${findingsList || "_None detected_"}
+
+## Folder Structure
+\`\`\`
+${data.folder_tree || ""}
+\`\`\`
+
+## AI Analysis
+${data.ai_analysis || ""}
+`;
+}
+
+function formatSecurityMd(data: Record<string, any>, repoUrl?: string): string {
+  const counts = data.severity_counts as Record<string, number> || {};
+  const findings = (data.findings as Array<Record<string, unknown>>) || [];
+
+  const findingBlocks = findings
+    .map(
+      (f, i) =>
+        `### ${i + 1}. [${String(f.severity).toUpperCase()}] ${f.category}\n` +
+        `- **File:** \`${f.file_path}:${f.line_number}\`\n` +
+        `- **Description:** ${f.description}\n` +
+        (f.line_content ? `- **Code:** \`${f.line_content}\`` : "")
+    )
+    .join("\n\n");
+
+  return `# Security Report — ${repoUrl || "Repository"}
+
+## Risk Overview
+- **Risk Level:** ${data.risk_level ?? "—"}
+- **Risk Score:** ${data.risk_score ?? "—"}/100
+- **Total Findings:** ${data.total_findings ?? 0}
+
+## Severity Breakdown
+| Severity | Count |
+|---|---|
+| Critical | ${counts.critical ?? 0} |
+| High | ${counts.high ?? 0} |
+| Medium | ${counts.medium ?? 0} |
+| Low | ${counts.low ?? 0} |
+
+## Findings
+${findingBlocks || "_No issues found — clean codebase ✓_"}
+
+## AI Security Assessment
+${data.ai_analysis || ""}
+`;
+}
+
+function formatQualityMd(data: Record<string, any>, repoUrl?: string): string {
+  const summary = (data.summary as Record<string, unknown>) || {};
+  const largestFiles = (data.largest_files as Array<{ path: string; lines: number }>) || [];
+
+  const fileRows = largestFiles
+    .map((f) => `| \`${f.path}\` | ${f.lines.toLocaleString()} |`)
+    .join("\n");
+
+  return `# Code Quality Report — ${repoUrl || "Repository"}
+
+## Grade: ${summary.quality_grade ?? "?"} (${summary.quality_score ?? 0}/100)
+
+## Summary
+| Metric | Value |
+|---|---|
+| Total Files | ${summary.total_files ?? "—"} |
+| Total Lines | ${Number(summary.total_lines ?? 0).toLocaleString()} |
+| Functions | ${summary.total_functions ?? "—"} |
+| Classes | ${summary.total_classes ?? "—"} |
+| TODOs / FIXMEs | ${summary.total_todos ?? "—"} |
+| Test Files | ${summary.test_files ?? "—"} |
+| Test Coverage Ratio | ${((Number(summary.test_coverage_ratio ?? 0)) * 100).toFixed(0)}% |
+| Comment Ratio | ${((Number(summary.avg_comment_ratio ?? 0)) * 100).toFixed(0)}% |
+
+## Largest Files
+| File | Lines |
+|---|---|
+${fileRows || "| — | — |"}
+
+## AI Quality Assessment
+${data.ai_analysis || ""}
+`;
+}
+
+function formatReadmeMd(data: Record<string, any>): string {
+  return String(data.content || "");
+}
+
+function getMarkdown(key: TabKey, data: Record<string, any>, repoUrl?: string): string {
+  if (key === "architecture") return formatArchitectureMd(data, repoUrl);
+  if (key === "security") return formatSecurityMd(data, repoUrl);
+  if (key === "quality") return formatQualityMd(data, repoUrl);
+  return formatReadmeMd(data);
+}
+
+// ---- Download helpers ----
+
+function triggerDownload(filename: string, content: string) {
+  const blob = new Blob([content], { type: "text/markdown;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+async function downloadAll(reports: Reports, repoUrl?: string) {
+  const zip = new JSZip();
+  const name = repoName(repoUrl);
+  const keys: TabKey[] = ["architecture", "security", "quality", "readme"];
+  for (const key of keys) {
+    const data = reports[key] as Record<string, any> | undefined;
+    if (data) {
+      zip.file(`gitwise-${key}.md`, getMarkdown(key, data, repoUrl));
+    }
+  }
+  const blob = await zip.generateAsync({ type: "blob" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `gitwise-${name}.zip`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ---- Download button ----
+
+function DownloadButton({ onClick, label = "Download" }: { onClick: () => void; label?: string }) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg text-slate-400 hover:text-slate-200 transition-colors shrink-0"
+      style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
+      title={label}
+    >
+      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+      </svg>
+      {label}
+    </button>
+  );
+}
 
 // ---- Sub-components ----
 
@@ -415,45 +598,65 @@ function ReadmeTab({ data }: { data: Record<string, any> }) {
 }
 
 // ---- Main ----
-export default function ReportTabs({ reports }: Props) {
+export default function ReportTabs({ reports, repoUrl }: Props) {
   const availableTabs = TABS.filter((t) => reports[t.key]);
   const [activeTab, setActiveTab] = useState<TabKey>(availableTabs[0]?.key || "architecture");
 
   if (availableTabs.length === 0) return null;
 
   const currentData = reports[activeTab] as Record<string, any>;
+  const name = repoName(repoUrl);
+
+  const handleDownloadCurrent = () => {
+    triggerDownload(
+      `gitwise-${activeTab}.md`,
+      getMarkdown(activeTab, currentData, repoUrl)
+    );
+  };
+
+  const handleDownloadAll = () => {
+    downloadAll(reports, repoUrl);
+  };
 
   return (
     <div className="glass rounded-2xl overflow-hidden">
       {/* Tab bar */}
       <div
-        className="flex overflow-x-auto"
+        className="flex items-center overflow-x-auto"
         style={{
           background: "rgba(255,255,255,0.02)",
           borderBottom: "1px solid rgba(255,255,255,0.06)",
         }}
       >
-        {availableTabs.map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            className={`flex items-center gap-2 px-5 py-3.5 text-sm font-medium whitespace-nowrap transition-all duration-200 border-b-2 ${
-              activeTab === tab.key
-                ? "text-white border-blue-500"
-                : "text-slate-500 border-transparent hover:text-slate-300"
-            }`}
-            style={activeTab === tab.key ? { background: "rgba(59,130,246,0.06)" } : {}}
-          >
-            <span
-              className={`transition-colors ${
-                activeTab === tab.key ? "text-blue-400" : "text-slate-600"
+        <div className="flex flex-1 overflow-x-auto">
+          {availableTabs.map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`flex items-center gap-2 px-5 py-3.5 text-sm font-medium whitespace-nowrap transition-all duration-200 border-b-2 ${
+                activeTab === tab.key
+                  ? "text-white border-blue-500"
+                  : "text-slate-500 border-transparent hover:text-slate-300"
               }`}
+              style={activeTab === tab.key ? { background: "rgba(59,130,246,0.06)" } : {}}
             >
-              {tab.icon}
-            </span>
-            {tab.label}
-          </button>
-        ))}
+              <span
+                className={`transition-colors ${
+                  activeTab === tab.key ? "text-blue-400" : "text-slate-600"
+                }`}
+              >
+                {tab.icon}
+              </span>
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Download buttons */}
+        <div className="flex items-center gap-2 px-3 shrink-0">
+          <DownloadButton onClick={handleDownloadCurrent} label=".md" />
+          <DownloadButton onClick={handleDownloadAll} label={`${name}.zip`} />
+        </div>
       </div>
 
       {/* Tab content */}
