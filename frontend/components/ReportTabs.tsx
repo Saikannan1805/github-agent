@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import JSZip from "jszip";
@@ -184,10 +184,26 @@ function getMarkdown(key: TabKey, data: Record<string, any>, repoUrl?: string): 
   return formatReadmeMd(data);
 }
 
+function getPlainText(key: TabKey, data: Record<string, any>, repoUrl?: string): string {
+  // Strip markdown symbols from the md version for a clean plain text output
+  return getMarkdown(key, data, repoUrl)
+    .replace(/#{1,6}\s/g, "")        // headings
+    .replace(/\*\*(.+?)\*\*/g, "$1") // bold
+    .replace(/\*(.+?)\*/g, "$1")     // italic
+    .replace(/`{1,3}[^`]*`{1,3}/g, (m) => m.replace(/`/g, "")) // code
+    .replace(/\[(.+?)\]\(.+?\)/g, "$1") // links
+    .replace(/^\|.*\|$/gm, (row) =>     // table rows → tab-separated
+      row.split("|").filter(Boolean).map((c) => c.trim()).join("\t")
+    )
+    .replace(/^[-*]\s/gm, "• ")      // bullet points
+    .replace(/\n{3,}/g, "\n\n")      // collapse excess blank lines
+    .trim();
+}
+
 // ---- Download helpers ----
 
-function triggerDownload(filename: string, content: string) {
-  const blob = new Blob([content], { type: "text/markdown;charset=utf-8" });
+function triggerDownload(filename: string, content: string, mime = "text/plain") {
+  const blob = new Blob([content], { type: `${mime};charset=utf-8` });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -203,7 +219,8 @@ async function downloadAll(reports: Reports, repoUrl?: string) {
   for (const key of keys) {
     const data = reports[key] as Record<string, any> | undefined;
     if (data) {
-      zip.file(`gitwise-${key}.md`, getMarkdown(key, data, repoUrl));
+      zip.file(`${key}.md`,   getMarkdown(key, data, repoUrl));
+      zip.file(`${key}.json`, JSON.stringify(data, null, 2));
     }
   }
   const blob = await zip.generateAsync({ type: "blob" });
@@ -215,21 +232,227 @@ async function downloadAll(reports: Reports, repoUrl?: string) {
   URL.revokeObjectURL(url);
 }
 
-// ---- Download button ----
+// ---- JSON option with developer note ----
 
-function DownloadButton({ onClick, label = "Download" }: { onClick: () => void; label?: string }) {
+function JsonOption({ onSelect, setOpen }: { onSelect: (f: string) => void; setOpen: (v: boolean) => void }) {
+  const [expanded, setExpanded] = useState(false);
   return (
-    <button
-      onClick={onClick}
-      className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg text-slate-400 hover:text-slate-200 transition-colors shrink-0"
-      style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
-      title={label}
-    >
-      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-      </svg>
-      {label}
-    </button>
+    <div style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+      <button
+        onClick={() => { onSelect("json"); setOpen(false); }}
+        className="w-full text-left px-4 py-3 transition-all"
+        onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.04)")}
+        onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+      >
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-3">
+            <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 font-mono text-xs font-bold text-emerald-400"
+              style={{ background: "rgba(16,185,129,0.12)", border: "1px solid rgba(16,185,129,0.2)" }}>
+              {"{}"}
+            </div>
+            <div>
+              <p className="text-xs font-medium text-slate-200">JSON (.json)</p>
+              <p className="text-[11px] text-slate-500 mt-0.5">For Developers</p>
+              <div className="flex gap-1 mt-1.5 flex-wrap">
+                {["CI/CD", "PR Review", "LLM Pipelines"].map((tag) => (
+                  <span
+                    key={tag}
+                    className="text-[10px] px-1.5 py-0.5 rounded text-indigo-300 font-medium"
+                    style={{ background: "rgba(99,102,241,0.15)", border: "1px solid rgba(99,102,241,0.2)" }}
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+          {/* Expand hint */}
+          <button
+            onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v); }}
+            className="text-[10px] text-indigo-400 hover:text-indigo-300 shrink-0 px-1.5 py-0.5 rounded transition-colors"
+            style={{ background: "rgba(99,102,241,0.1)" }}
+            title="How to use"
+          >
+            {expanded ? "▲ less" : "▼ how?"}
+          </button>
+        </div>
+      </button>
+
+      {/* Developer note — collapsible */}
+      {expanded && (
+        <div
+          className="px-4 pb-3 text-[11px] text-slate-400 space-y-1.5"
+          style={{ background: "rgba(99,102,241,0.04)" }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <p className="text-indigo-300 font-medium mb-1">How to use in your pipeline:</p>
+          <p>• <span className="text-slate-300">Block merges</span> — fail CI if <code className="text-indigo-300">risk_level === "CRITICAL"</code></p>
+          <p>• <span className="text-slate-300">Track quality</span> — store <code className="text-indigo-300">quality_score</code> over time per repo</p>
+          <p>• <span className="text-slate-300">Auto PR comments</span> — post findings via GitHub Actions</p>
+          <p>• <span className="text-slate-300">Feed to LLM</span> — send findings to GPT/Claude for auto-fix suggestions</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---- Download dropdown ----
+
+function DownloadMenu({ onSelect }: { onSelect: (format: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState({ top: 0, right: 0 });
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Calculate position from button when opening
+  const handleOpen = () => {
+    if (!open && btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect();
+      setMenuPos({
+        top: rect.bottom + 8,
+        right: window.innerWidth - rect.right,
+      });
+    }
+    setOpen((v) => !v);
+  };
+
+  // Close on outside click
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (
+        menuRef.current && !menuRef.current.contains(e.target as Node) &&
+        btnRef.current && !btnRef.current.contains(e.target as Node)
+      ) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  return (
+    <div className="shrink-0">
+      {/* Trigger button */}
+      <button
+        ref={btnRef}
+        onClick={handleOpen}
+        className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg text-slate-400 hover:text-slate-200 transition-colors"
+        style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
+      >
+        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+        </svg>
+        Download
+        <svg
+          className={`w-3 h-3 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+          fill="none" stroke="currentColor" viewBox="0 0 24 24"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {/* Dropdown menu — fixed so it escapes overflow:hidden parents */}
+      {open && (
+        <div
+          ref={menuRef}
+          className="w-64 rounded-xl overflow-hidden z-[9999]"
+          style={{
+            position: "fixed",
+            top: menuPos.top,
+            right: menuPos.right,
+            background: "linear-gradient(145deg, #0f172a 0%, #0c1428 100%)",
+            border: "1px solid rgba(255,255,255,0.1)",
+            boxShadow: "0 20px 60px rgba(0,0,0,0.7), 0 0 0 1px rgba(99,102,241,0.08)",
+            animation: "slideDown 0.15s ease-out both",
+          }}
+        >
+          <div
+            className="px-4 py-2.5 flex items-center gap-2"
+            style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}
+          >
+            <svg className="w-3.5 h-3.5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            <p className="text-xs font-semibold text-slate-200">Download Report</p>
+          </div>
+
+          {/* md */}
+          <button
+            onClick={() => { onSelect("md"); setOpen(false); }}
+            className="w-full text-left px-4 py-3 transition-all group"
+            style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}
+            onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.04)"}
+            onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+                style={{ background: "rgba(99,102,241,0.12)", border: "1px solid rgba(99,102,241,0.2)" }}>
+                <svg className="w-3.5 h-3.5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-slate-200">Markdown (.md)</p>
+                <p className="text-[11px] text-slate-500 mt-0.5">Best for GitHub, Notion, VS Code</p>
+              </div>
+            </div>
+          </button>
+
+          {/* txt */}
+          <button
+            onClick={() => { onSelect("txt"); setOpen(false); }}
+            className="w-full text-left px-4 py-3 transition-all"
+            style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}
+            onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.04)"}
+            onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+                style={{ background: "rgba(71,85,105,0.2)", border: "1px solid rgba(71,85,105,0.3)" }}>
+                <svg className="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-slate-200">Plain Text (.txt)</p>
+                <p className="text-[11px] text-slate-500 mt-0.5">Opens anywhere · Share via email</p>
+              </div>
+            </div>
+          </button>
+
+          {/* json — with developer note */}
+          <JsonOption onSelect={onSelect} setOpen={setOpen} />
+
+          {/* divider before pdf */}
+          <div className="mx-4 my-1" style={{ height: "1px", background: "rgba(255,255,255,0.06)" }} />
+
+          {/* pdf — coming soon */}
+          <div className="px-4 py-3 opacity-40 cursor-not-allowed">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-3">
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+                  style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)" }}>
+                  <svg className="w-3.5 h-3.5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-slate-200">PDF (.pdf)</p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">Polished · Client reports</p>
+                </div>
+              </div>
+              <span
+                className="text-[10px] px-2 py-0.5 rounded-full text-slate-500 shrink-0"
+                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
+              >
+                soon
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -605,18 +828,7 @@ export default function ReportTabs({ reports, repoUrl }: Props) {
   if (availableTabs.length === 0) return null;
 
   const currentData = reports[activeTab] as Record<string, any>;
-  const name = repoName(repoUrl);
-
-  const handleDownloadCurrent = () => {
-    triggerDownload(
-      `gitwise-${activeTab}.md`,
-      getMarkdown(activeTab, currentData, repoUrl)
-    );
-  };
-
-  const handleDownloadAll = () => {
-    downloadAll(reports, repoUrl);
-  };
+  const zipName = repoName(repoUrl);
 
   return (
     <div className="glass rounded-2xl overflow-hidden">
@@ -652,10 +864,31 @@ export default function ReportTabs({ reports, repoUrl }: Props) {
           ))}
         </div>
 
-        {/* Download buttons */}
+        {/* Download controls */}
         <div className="flex items-center gap-2 px-3 shrink-0">
-          <DownloadButton onClick={handleDownloadCurrent} label=".md" />
-          <DownloadButton onClick={handleDownloadAll} label={`${name}.zip`} />
+          {/* Per-tab format dropdown */}
+          <DownloadMenu onSelect={(format) => {
+            const data = reports[activeTab] as Record<string, any>;
+            if (format === "md") {
+              triggerDownload(`gitwise-${activeTab}.md`, getMarkdown(activeTab, data, repoUrl), "text/markdown");
+            } else if (format === "txt") {
+              triggerDownload(`gitwise-${activeTab}.txt`, getPlainText(activeTab, data, repoUrl), "text/plain");
+            } else if (format === "json") {
+              triggerDownload(`gitwise-${activeTab}.json`, JSON.stringify(data, null, 2), "application/json");
+            }
+          }} />
+          {/* Download all as ZIP */}
+          <button
+            onClick={() => downloadAll(reports, repoUrl)}
+            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg text-slate-400 hover:text-slate-200 transition-colors shrink-0"
+            style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
+            title="Download all reports as ZIP (md + json)"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            {zipName}.zip
+          </button>
         </div>
       </div>
 
