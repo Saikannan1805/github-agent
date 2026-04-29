@@ -48,7 +48,9 @@ const STACK_GROUPS = [
     group: "Infrastructure",
     color: "#818cf8",
     items: [
-      { name: "Render", role: "Cloud hosting (backend + frontend)", color: "#818cf8", bg: "rgba(129,140,248,0.1)", border: "rgba(129,140,248,0.25)" },
+      { name: "Vercel",           role: "Frontend hosting",           color: "#818cf8", bg: "rgba(129,140,248,0.1)", border: "rgba(129,140,248,0.25)" },
+      { name: "Render",           role: "Backend hosting",            color: "#a78bfa", bg: "rgba(167,139,250,0.1)", border: "rgba(167,139,250,0.25)" },
+      { name: "Vercel Analytics", role: "Page views & performance",   color: "#64748b", bg: "rgba(100,116,139,0.1)", border: "rgba(100,116,139,0.25)" },
     ],
   },
 ];
@@ -59,30 +61,17 @@ const FEATURES = [
   { icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z", label: "Code Quality", desc: "Complexity, test coverage, grade A–F scoring", color: "#a78bfa" },
   { icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z", label: "Auto README", desc: "AI-generated professional README with full setup guide", color: "#3ecf8e" },
   { icon: "M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z", label: "RAG-powered Chat", desc: "Semantic search over the entire codebase with citations", color: "#f97316" },
-  { icon: "M13 10V3L4 14h7v7l9-11h-7z", label: "Real-time Streaming", desc: "SSE pipeline — live progress updates as analysis runs", color: "#fbbf24" },
+  { icon: "M13 10V3L4 14h7v7l9-11h-7z", label: "Real-time Streaming", desc: "SSE pipeline. Live progress updates as analysis runs", color: "#fbbf24" },
+  { icon: "M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4", label: "Export Reports", desc: "Download any report as Markdown or JSON per-tab, or grab everything as a ZIP. Ready for CI/CD, PR review bots or LLM pipelines", color: "#10b981" },
 ];
 
 const LINKS = [
-  {
-    label: "Portfolio",
-    href: "#",
-    icon: "M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9",
-    gradient: "linear-gradient(135deg, #2563eb, #6366f1)",
-    shadow: "rgba(37,99,235,0.35)",
-  },
   {
     label: "LinkedIn",
     href: "https://www.linkedin.com/in/saikannansathish",
     icon: "M16 8a6 6 0 016 6v7h-4v-7a2 2 0 00-2-2 2 2 0 00-2 2v7h-4v-7a6 6 0 016-6zM2 9h4v12H2z M4 6a2 2 0 100-4 2 2 0 000 4z",
     gradient: "linear-gradient(135deg, #0077b5, #00a0dc)",
     shadow: "rgba(0,119,181,0.35)",
-  },
-  {
-    label: "GitHub",
-    href: "https://github.com/Saikannan1805",
-    icon: "M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z",
-    gradient: "linear-gradient(135deg, #24292e, #57606a)",
-    shadow: "rgba(0,0,0,0.4)",
   },
 ];
 
@@ -185,7 +174,7 @@ export default function AboutPanel({ onClose }: Props) {
                 className="text-slate-300 text-sm leading-relaxed"
                 style={{ borderLeft: "2px solid rgba(99,102,241,0.5)", paddingLeft: "14px" }}
               >
-                Gitwise is a full-stack AI-powered GitHub repository analyzer. Paste any public GitHub URL and get a comprehensive breakdown of architecture, security vulnerabilities, and code quality — powered by a LangGraph agent pipeline with Groq LLaMA inference. Then chat with the entire codebase using RAG.
+                Gitwise is a full-stack AI-powered GitHub repository analyzer. Paste any public GitHub URL and get a comprehensive breakdown of architecture, security vulnerabilities and code quality. Powered by a LangGraph agent pipeline with Groq LLaMA inference. Chat with the codebase using RAG and export any report as Markdown, JSON or a full ZIP bundle. Ready to plug into CI/CD pipelines, PR review bots or LLM workflows.
               </p>
             </div>
 
@@ -199,10 +188,11 @@ export default function AboutPanel({ onClose }: Props) {
                   { step: "03", label: "Analyze",       desc: "LangGraph agents: architecture, security scan, quality metrics" },
                   { step: "04", label: "README",        desc: "LLM synthesizes a full professional README from all reports" },
                   { step: "05", label: "Chat",          desc: "Semantic search + filepath search → RAG response with citations" },
-                ].map(({ step, label, desc }, i) => (
+                  { step: "06", label: "Export",        desc: "Download per-tab MD / JSON or full ZIP. Drop into CI, PR bots or LLM prompts" },
+                ].map(({ step, label, desc }, i, arr) => (
                   <div key={step} className="flex sm:flex-col gap-3 sm:gap-1 flex-1">
                     <div className="flex sm:flex-col items-center sm:items-start gap-1 sm:gap-0">
-                      {i < 4 && (
+                      {i < arr.length - 1 && (
                         <div className="hidden sm:flex items-center w-full mb-2">
                           <div className="flex-1 h-px" style={{ background: "rgba(99,102,241,0.25)" }} />
                           <svg className="w-2.5 h-2.5 text-indigo-500 shrink-0" fill="currentColor" viewBox="0 0 6 10">
@@ -252,7 +242,7 @@ export default function AboutPanel({ onClose }: Props) {
             </div>
 
             {/* ── Tech Stack ── */}
-            <div className="stagger-5 space-y-4">
+            <div className="stagger-4 space-y-4">
               <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-widest">Tech Stack</h3>
               <div className="space-y-4">
                 {STACK_GROUPS.map(({ group, color, items }) => (

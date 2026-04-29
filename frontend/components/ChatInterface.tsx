@@ -26,7 +26,7 @@ const SUGGESTIONS = [
 const INITIAL_MESSAGE: Message = {
   role: "assistant",
   content:
-    "Hi! I've analyzed this repository. Ask me anything about the codebase — I can find specific functions, explain patterns, or answer architecture questions with exact file and line references.",
+    "Hi! I've analyzed this repository. Ask me anything about the codebase. I can find specific functions, explain patterns or answer architecture questions with exact file and line references.",
 };
 
 export default function ChatInterface({ sessionId, apiUrl }: Props) {
@@ -93,7 +93,7 @@ export default function ChatInterface({ sessionId, apiUrl }: Props) {
         {
           role: "assistant",
           content: isExpired
-            ? "Session expired — your analysis data was cleaned up after 2 hours. Please paste the repo URL again and re-analyze to continue chatting."
+            ? "Session expired. Your analysis data was cleaned up after 2 hours. Please paste the repo URL again and re-analyze to continue chatting."
             : `Error: ${err instanceof Error ? err.message : String(err)}`,
         },
       ]);

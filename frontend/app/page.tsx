@@ -7,6 +7,7 @@ import ReportTabs from "@/components/ReportTabs";
 import ChatInterface from "@/components/ChatInterface";
 import DemoTerminal from "@/components/DemoTerminal";
 import AboutPanel from "@/components/AboutPanel";
+import IntegrationRecipes from "@/components/IntegrationRecipes";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const STORAGE_KEY = "github_analyzer_session";
@@ -42,6 +43,7 @@ export default function HomePage() {
   const [submittedUrl, setSubmittedUrl] = useState<string>("");
   const [queuedUrl, setQueuedUrl] = useState<string>("");
   const [showAbout, setShowAbout] = useState(false);
+
 
   // Disable browser scroll restoration so mobile doesn't jump on refresh
   useEffect(() => {
@@ -184,7 +186,7 @@ export default function HomePage() {
           const s = await fetch(`${API}/status/${session_id}`);
           const data = await s.json();
           setPhase("error");
-          setErrorMsg(data.error || "Analysis failed — check the backend logs.");
+          setErrorMsg(data.error || "Analysis failed. Check the backend logs.");
         } catch {
           setPhase("error");
           setErrorMsg("Connection to server lost. Check the backend is running.");
@@ -196,19 +198,36 @@ export default function HomePage() {
     }
   }, []);
 
+  const [devVisible, setDevVisible] = useState(false);
+  const devRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (phase !== "idle") return;
+    const el = devRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) setDevVisible(true); },
+      { threshold: 0 }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [phase]);
+
+
   return (
-    <div className="space-y-8">
+    <div className={phase !== "idle" ? "space-y-8" : ""}>
 
       {/* Hero — only on idle */}
       {phase === "idle" && (
-        <div className="animate-fade-up">
-          {/* Two-column layout */}
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.1fr] gap-10 xl:gap-16 items-stretch pt-8 pb-10">
-
-            {/* Left — branding + headline + description + badges */}
-            <div className="flex flex-col justify-center gap-7">
-
-              {/* Brand mark + name */}
+        <>
+        <div
+          className="animate-fade-up flex flex-col justify-center"
+          style={{ minHeight: "100vh", paddingBottom: "2rem" }}
+        >
+          {/* Top bar — brand + input */}
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 pt-8 pb-6">
+            <div className="flex flex-col gap-2.5 shrink-0">
+              {/* Logo + name row */}
               <div className="flex items-center gap-3.5">
                 <div className="relative flex items-center justify-center shrink-0">
                   <div className="absolute w-20 h-20 rounded-2xl" style={{ background: "rgba(37,99,235,0.18)", filter: "blur(14px)" }} />
@@ -232,7 +251,48 @@ export default function HomePage() {
                 </div>
               </div>
 
-              {/* Headline */}
+              {/* How it works button */}
+              <button
+                onClick={() => setShowAbout(true)}
+                className="group flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-200"
+                style={{
+                  background: "rgba(99,102,241,0.06)",
+                  border: "1px solid rgba(99,102,241,0.18)",
+                  color: "#64748b",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = "rgba(99,102,241,0.12)";
+                  e.currentTarget.style.borderColor = "rgba(99,102,241,0.32)";
+                  e.currentTarget.style.color = "#cbd5e1";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = "rgba(99,102,241,0.06)";
+                  e.currentTarget.style.borderColor = "rgba(99,102,241,0.18)";
+                  e.currentTarget.style.color = "#64748b";
+                }}
+              >
+                <svg className="w-3.5 h-3.5 text-indigo-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>How it works &amp; developer workflows</span>
+                <svg className="w-3 h-3 ml-auto text-indigo-400 shrink-0 transition-transform duration-200 group-hover:translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            </div>
+            <div className="hidden sm:block h-10 w-px shrink-0" style={{ background: "rgba(255,255,255,0.07)" }} />
+            <div className="flex-1 min-w-0">
+              <RepoInput onAnalyze={handleAnalyze} isLoading={false} />
+            </div>
+          </div>
+
+          {/* Two-column layout */}
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.1fr] gap-10 xl:gap-16 items-stretch pb-8">
+
+            {/* Left — branding + headline + description */}
+            <div className="flex flex-col justify-start gap-7">
+
+              {/* Headline + description */}
               <div className="flex flex-col gap-3">
                 <h1 className="text-[2.6rem] sm:text-5xl lg:text-[3.2rem] xl:text-[3.6rem] font-bold tracking-tight text-white leading-[1.05]">
                   Understand any<br />
@@ -241,25 +301,30 @@ export default function HomePage() {
                 </h1>
                 <p className="text-slate-400 text-base sm:text-lg leading-relaxed max-w-sm">
                   Paste a URL. Get a full AI-powered breakdown of architecture,
-                  security, and code quality — then chat with the codebase.
+                  security, and code quality. Chat with the codebase. Export reports as <span className="text-slate-300 font-medium">Markdown, JSON or ZIP</span> and plug them straight into CI/CD, PR reviews, or LLM pipelines.
                 </p>
               </div>
 
               {/* Feature badges */}
               <div className="flex flex-wrap gap-2">
                 {[
-                  { icon: "M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7", label: "Architecture Map" },
-                  { icon: "M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z", label: "Security Scan" },
-                  { icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z", label: "Code Quality" },
-                  { icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z", label: "Auto README" },
-                  { icon: "M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z", label: "AI Chat" },
-                ].map(({ icon, label }) => (
+                  { icon: "M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7", label: "Architecture Map", color: "text-blue-400" },
+                  { icon: "M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z", label: "Security Scan", color: "text-blue-400" },
+                  { icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z", label: "Code Quality", color: "text-blue-400" },
+                  { icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z", label: "Auto README", color: "text-blue-400" },
+                  { icon: "M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z", label: "AI Chat", color: "text-blue-400" },
+                  { icon: "M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4", label: "Export MD / JSON / ZIP", color: "text-emerald-400", highlight: true },
+                ].map(({ icon, label, color, highlight }) => (
                   <div
                     key={label}
-                    className="flex items-center gap-1.5 text-xs text-slate-400 px-3 py-1.5 rounded-full"
-                    style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)" }}
+                    className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full"
+                    style={{
+                      background: highlight ? "rgba(16,185,129,0.07)" : "rgba(255,255,255,0.04)",
+                      border: highlight ? "1px solid rgba(16,185,129,0.2)" : "1px solid rgba(255,255,255,0.07)",
+                      color: highlight ? "#6ee7b7" : "#94a3b8",
+                    }}
                   >
-                    <svg className="w-3 h-3 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className={`w-3 h-3 ${color}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d={icon} />
                     </svg>
                     {label}
@@ -267,48 +332,60 @@ export default function HomePage() {
                 ))}
               </div>
 
-              {/* Learn More button */}
-              <button
-                onClick={() => setShowAbout(true)}
-                className="group flex items-center gap-2.5 w-fit text-sm font-medium transition-all duration-200"
-                style={{ color: "#94a3b8" }}
-                onMouseEnter={(e) => e.currentTarget.style.color = "#e2e8f0"}
-                onMouseLeave={(e) => e.currentTarget.style.color = "#94a3b8"}
-              >
-                <span
-                  className="w-7 h-7 rounded-full flex items-center justify-center transition-all duration-200 group-hover:scale-110"
-                  style={{ background: "rgba(99,102,241,0.15)", border: "1px solid rgba(99,102,241,0.3)" }}
-                >
-                  <svg className="w-3.5 h-3.5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </span>
-                Learn more about this project
-                <svg
-                  className="w-3.5 h-3.5 transition-transform duration-200 group-hover:translate-x-1 text-indigo-400"
-                  fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </button>
             </div>
 
-            {/* Right — demo terminal */}
-            <div className="w-full min-h-[420px] lg:min-h-0">
+            {/* Right — terminal */}
+            <div className="flex flex-col min-h-0 overflow-hidden h-[420px] lg:h-auto">
               <DemoTerminal />
             </div>
           </div>
 
-          {/* Divider with label */}
-          <div className="flex items-center gap-4 mb-5">
-            <div className="flex-1 h-px" style={{ background: "rgba(255,255,255,0.05)" }} />
-            <span className="text-xs text-slate-600 font-mono tracking-widest uppercase">Try it yourself</span>
-            <div className="flex-1 h-px" style={{ background: "rgba(255,255,255,0.05)" }} />
+          {/* Use case cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-4 mb-6">
+            {[
+              { num: "01", title: "CI/CD Gates",       desc: "Block risky PRs before they reach main",     color: "#a5b4fc", bg: "rgba(99,102,241,0.07)",  border: "rgba(99,102,241,0.18)",  icon: "M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" },
+              { num: "02", title: "PR Review",          desc: "Auto-post risk badge on every pull request",  color: "#93c5fd", bg: "rgba(59,130,246,0.07)",  border: "rgba(59,130,246,0.18)",  icon: "M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" },
+              { num: "03", title: "Quality Tracking",   desc: "Chart quality scores across commits over time", color: "#6ee7b7", bg: "rgba(16,185,129,0.07)", border: "rgba(16,185,129,0.18)", icon: "M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" },
+              { num: "04", title: "LLM Auto-fix",       desc: "Feed findings into Claude, get code fixes",   color: "#fcd34d", bg: "rgba(245,158,11,0.07)", border: "rgba(245,158,11,0.18)",  icon: "M13 10V3L4 14h7v7l9-11h-7z" },
+            ].map(({ num, title, desc, color, bg, border, icon }) => (
+              <div
+                key={num}
+                className="rounded-xl p-4 flex flex-col gap-2"
+                style={{ background: bg, border: `1px solid ${border}` }}
+              >
+                <span className="text-[10px] font-mono font-bold" style={{ color, opacity: 0.65 }}>{num}</span>
+                <div className="flex items-center gap-2">
+                  <svg className="w-4 h-4 shrink-0" fill="none" stroke={color} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d={icon} />
+                  </svg>
+                  <span className="text-sm font-semibold text-slate-200">{title}</span>
+                </div>
+                <p className="text-xs text-slate-500 leading-relaxed">{desc}</p>
+              </div>
+            ))}
           </div>
 
-          {/* Input — full width below both columns */}
-          <RepoInput onAnalyze={handleAnalyze} isLoading={false} />
+
+          {/* Scroll hint */}
+          <div className="flex justify-center mt-2">
+            <button
+              onClick={() => devRef.current?.scrollIntoView({ behavior: "smooth" })}
+              className="flex items-center gap-2 text-xs text-slate-600 hover:text-slate-400 transition-colors duration-200"
+            >
+              <span className="font-mono tracking-widest uppercase">For Developers</span>
+              <svg className="w-3.5 h-3.5 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+          </div>
+
         </div>
+
+        {/* Integration recipes — instructions + code */}
+        <div ref={devRef}>
+          <IntegrationRecipes visible={devVisible} />
+        </div>
+        </>
       )}
 
       {/* Input — shown during non-idle phases */}
@@ -434,6 +511,7 @@ export default function HomePage() {
 
       {/* About panel */}
       {showAbout && <AboutPanel onClose={() => setShowAbout(false)} />}
+
     </div>
   );
 }

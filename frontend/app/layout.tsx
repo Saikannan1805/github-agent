@@ -4,7 +4,7 @@ import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 
 export const metadata: Metadata = {
-  title: "Gitwise — AI GitHub Analysis",
+  title: "Gitwise | AI GitHub Analysis",
   description:
     "Deep AI analysis of any GitHub repository. Architecture, security, code quality, and RAG-powered chat.",
   icons: {

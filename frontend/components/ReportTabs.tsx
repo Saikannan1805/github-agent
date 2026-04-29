@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import JSZip from "jszip";
@@ -212,86 +213,306 @@ function triggerDownload(filename: string, content: string, mime = "text/plain")
   URL.revokeObjectURL(url);
 }
 
-async function downloadAll(reports: Reports, repoUrl?: string) {
-  const zip = new JSZip();
-  const name = repoName(repoUrl);
-  const keys: TabKey[] = ["architecture", "security", "quality", "readme"];
-  for (const key of keys) {
-    const data = reports[key] as Record<string, any> | undefined;
-    if (data) {
-      zip.file(`${key}.md`,   getMarkdown(key, data, repoUrl));
-      zip.file(`${key}.json`, JSON.stringify(data, null, 2));
-    }
-  }
-  const blob = await zip.generateAsync({ type: "blob" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `gitwise-${name}.zip`;
-  a.click();
-  URL.revokeObjectURL(url);
+
+// ---- JSON developer panel ----
+
+const DEV_TABS = [
+  {
+    label: "CI/CD",
+    filename: "ci-check.js",
+    explanation: "Paste this into your pipeline. It reads the downloaded JSON and exits with an error code if the risk level is CRITICAL. This automatically blocks the merge in GitHub Actions, GitLab CI or any CI tool.",
+    snippet: `// ci-check.js — add this as a pipeline step
+const report = require('./gitwise-security.json');
+
+if (report.risk_level === 'CRITICAL') {
+  console.error('❌ Critical security issues found!');
+  console.error('   Findings:', report.total_findings);
+  process.exit(1); // non-zero exit blocks the merge
 }
 
-// ---- JSON option with developer note ----
+console.log('✅ Security check passed:', report.risk_level);
+console.log('   Total findings:', report.total_findings);`,
+  },
+  {
+    label: "PR Review",
+    filename: ".github/workflows/gitwise.yml",
+    explanation: "First, commit your downloaded JSON files (gitwise-quality.json and gitwise-security.json) to the repo root. Then this GitHub Actions workflow runs on every pull request — it reads those files and posts a formatted summary comment directly on the PR so reviewers see the grade and findings without leaving GitHub.",
+    snippet: `name: Gitwise Code Review
+on: [pull_request]
 
-function JsonOption({ onSelect, setOpen }: { onSelect: (f: string) => void; setOpen: (v: boolean) => void }) {
-  const [expanded, setExpanded] = useState(false);
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Post Gitwise report as PR comment
+        env:
+          GH_TOKEN: \${{ secrets.GITHUB_TOKEN }}
+        run: |
+          GRADE=$(cat gitwise-quality.json | jq -r '.summary.quality_grade')
+          SCORE=$(cat gitwise-quality.json | jq '.summary.quality_score')
+          RISK=$(cat gitwise-security.json | jq -r '.risk_level')
+          FINDINGS=$(cat gitwise-security.json | jq '.total_findings')
+
+          gh pr comment \${{ github.event.pull_request.number }} --body "
+          ## Gitwise Report
+          | Metric | Result |
+          |---|---|
+          | Quality Grade | \${GRADE} (\${SCORE}/100) |
+          | Security Risk | \${RISK} |
+          | Findings | \${FINDINGS} |
+          "`,
+  },
+  {
+    label: "Quality Tracking",
+    filename: "track-quality.js",
+    explanation: "Reads the quality and security JSONs and logs a structured snapshot — grade, score, risk level, test ratio, issue count, timestamp. Schedule it on every merge to main to track trends over time. Pipe the output to Supabase, Postgres, a webhook, or any monitoring tool.",
+    snippet: `// track-quality.js
+// Run: node track-quality.js
+// Pipe output to any DB or webhook
+const fs = require("fs");
+
+const quality  = JSON.parse(fs.readFileSync("gitwise-quality.json"));
+const security = JSON.parse(fs.readFileSync("gitwise-security.json"));
+
+const snapshot = {
+  quality_grade: quality.summary.quality_grade,   // e.g. "A"
+  quality_score: quality.summary.quality_score,   // e.g. 89
+  risk_level:    security.risk_level,             // e.g. "LOW"
+  issues_count:  security.total_findings,         // e.g. 3
+  test_ratio:    quality.summary.test_coverage_ratio,
+  functions:     quality.summary.total_functions,
+  recorded_at:   new Date().toISOString(),
+};
+
+console.log(JSON.stringify(snapshot, null, 2));
+
+// Example: POST to a webhook
+// node track-quality.js | curl -s -X POST https://yourapi/snapshots \\
+//   -H "Content-Type: application/json" -d @-`,
+  },
+  {
+    label: "LLM",
+    filename: "llm-fix.js",
+    explanation: "Extract the critical and high severity findings from the JSON and send them to any LLM (OpenAI, Anthropic, Groq). The LLM gets exact file paths and line numbers so it can suggest targeted fixes, not generic advice.",
+    snippet: `// llm-fix.js — get AI-generated fix suggestions
+const report = require('./gitwise-security.json');
+
+// Pull only the most important findings
+const urgent = report.findings
+  .filter(f => ['critical', 'high'].includes(f.severity))
+  .map(f => [
+    \`File: \${f.file_path} (line \${f.line_number})\`,
+    \`Issue: \${f.description}\`,
+    \`Code:  \${f.line_content}\`,
+  ].join('\\n'))
+  .join('\\n\\n');
+
+// Prompt ready to send to any LLM API
+const prompt = \`
+You are a security engineer. Fix these issues in my codebase:
+
+\${urgent}
+
+For each issue, provide the corrected code snippet.
+\`;
+
+console.log(prompt); // pipe this to your LLM of choice`,
+  },
+];
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
   return (
-    <div style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-      <button
-        onClick={() => { onSelect("json"); setOpen(false); }}
-        className="w-full text-left px-4 py-3 transition-all"
-        onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.04)")}
-        onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        navigator.clipboard.writeText(text).then(() => {
+          setCopied(true);
+          setTimeout(() => setCopied(false), 2000);
+        });
+      }}
+      className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg font-medium transition-all"
+      style={{
+        background: copied ? "rgba(16,185,129,0.15)" : "rgba(255,255,255,0.07)",
+        border: copied ? "1px solid rgba(16,185,129,0.3)" : "1px solid rgba(255,255,255,0.1)",
+        color: copied ? "#34d399" : "#94a3b8",
+      }}
+    >
+      {copied ? (
+        <><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg> Copied!</>
+      ) : (
+        <><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg> Copy</>
+      )}
+    </button>
+  );
+}
+
+function DevPanel({ onClose }: { onClose: () => void }) {
+  const [activeTab, setActiveTab] = useState(0);
+  const tab = DEV_TABS[activeTab];
+
+  // Close on ESC
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 z-[9998]"
+        style={{ background: "rgba(0,0,0,0.4)", backdropFilter: "blur(2px)" }}
+        onClick={onClose}
+      />
+
+      {/* Panel — outer div handles centering, inner handles animation */}
+      <div
+        className="fixed z-[9999] flex items-center justify-center"
+        style={{ inset: 0, pointerEvents: "none" }}
       >
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-3">
-            <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 font-mono text-xs font-bold text-emerald-400"
-              style={{ background: "rgba(16,185,129,0.12)", border: "1px solid rgba(16,185,129,0.2)" }}>
-              {"{}"}
-            </div>
-            <div>
-              <p className="text-xs font-medium text-slate-200">JSON (.json)</p>
-              <p className="text-[11px] text-slate-500 mt-0.5">For Developers</p>
-              <div className="flex gap-1 mt-1.5 flex-wrap">
-                {["CI/CD", "PR Review", "LLM Pipelines"].map((tag) => (
-                  <span
-                    key={tag}
-                    className="text-[10px] px-1.5 py-0.5 rounded text-indigo-300 font-medium"
-                    style={{ background: "rgba(99,102,241,0.15)", border: "1px solid rgba(99,102,241,0.2)" }}
-                  >
-                    {tag}
-                  </span>
-                ))}
+      <div
+        className="flex flex-col"
+        style={{
+          pointerEvents: "all",
+          width: "min(520px, 92vw)",
+          maxHeight: "85vh",
+          background: "linear-gradient(145deg, #0f172a 0%, #0c1428 100%)",
+          border: "1px solid rgba(255,255,255,0.1)",
+          borderRadius: "16px",
+          boxShadow: "0 32px 80px rgba(0,0,0,0.8), 0 0 0 1px rgba(99,102,241,0.1)",
+          animation: "panelSlideUp 0.25s cubic-bezier(0.16,1,0.3,1) both",
+        }}
+      >
+        {/* Header */}
+        <div
+          className="flex items-start justify-between px-6 py-5 shrink-0"
+          style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}
+        >
+          <div>
+            <div className="flex items-center gap-2.5 mb-1">
+              <div
+                className="w-7 h-7 rounded-lg flex items-center justify-center font-mono text-sm font-bold text-emerald-400"
+                style={{ background: "rgba(16,185,129,0.12)", border: "1px solid rgba(16,185,129,0.2)" }}
+              >
+                {"{}"}
               </div>
+              <h2 className="text-sm font-semibold text-white">Using JSON in your pipeline</h2>
             </div>
+            <p className="text-xs text-slate-500 ml-9.5">
+              Copy-paste ready snippets for common developer workflows
+            </p>
           </div>
-          {/* Expand hint */}
           <button
-            onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v); }}
-            className="text-[10px] text-indigo-400 hover:text-indigo-300 shrink-0 px-1.5 py-0.5 rounded transition-colors"
-            style={{ background: "rgba(99,102,241,0.1)" }}
-            title="How to use"
+            onClick={onClose}
+            className="text-slate-500 hover:text-slate-300 transition-colors mt-0.5 shrink-0"
           >
-            {expanded ? "▲ less" : "▼ how?"}
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
           </button>
         </div>
-      </button>
 
-      {/* Developer note — collapsible */}
-      {expanded && (
-        <div
-          className="px-4 pb-3 text-[11px] text-slate-400 space-y-1.5"
-          style={{ background: "rgba(99,102,241,0.04)" }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <p className="text-indigo-300 font-medium mb-1">How to use in your pipeline:</p>
-          <p>• <span className="text-slate-300">Block merges</span> — fail CI if <code className="text-indigo-300">risk_level === "CRITICAL"</code></p>
-          <p>• <span className="text-slate-300">Track quality</span> — store <code className="text-indigo-300">quality_score</code> over time per repo</p>
-          <p>• <span className="text-slate-300">Auto PR comments</span> — post findings via GitHub Actions</p>
-          <p>• <span className="text-slate-300">Feed to LLM</span> — send findings to GPT/Claude for auto-fix suggestions</p>
+        {/* Tabs */}
+        <div className="flex gap-2 px-6 pt-4 pb-2 shrink-0">
+          {DEV_TABS.map((t, i) => (
+            <button
+              key={t.label}
+              onClick={() => setActiveTab(i)}
+              className="px-4 py-1.5 rounded-lg text-sm font-medium transition-all"
+              style={{
+                background: activeTab === i ? "rgba(99,102,241,0.2)" : "rgba(255,255,255,0.04)",
+                color: activeTab === i ? "#a5b4fc" : "#64748b",
+                border: activeTab === i ? "1px solid rgba(99,102,241,0.35)" : "1px solid rgba(255,255,255,0.06)",
+              }}
+            >
+              {t.label}
+            </button>
+          ))}
         </div>
-      )}
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto px-6 pb-6 space-y-4">
+          {/* Code block */}
+          <div className="rounded-xl overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.08)" }}>
+            {/* Code header */}
+            <div
+              className="flex items-center justify-between px-4 py-2.5"
+              style={{ background: "rgba(0,0,0,0.35)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}
+            >
+              <div className="flex items-center gap-2">
+                <div className="flex gap-1">
+                  <span className="w-2.5 h-2.5 rounded-full" style={{ background: "rgba(239,68,68,0.5)" }} />
+                  <span className="w-2.5 h-2.5 rounded-full" style={{ background: "rgba(234,179,8,0.5)" }} />
+                  <span className="w-2.5 h-2.5 rounded-full" style={{ background: "rgba(34,197,94,0.5)" }} />
+                </div>
+                <span className="text-xs text-slate-500 font-mono ml-1">{tab.filename}</span>
+              </div>
+              <CopyButton text={tab.snippet} />
+            </div>
+            {/* Code */}
+            <pre
+              className="text-xs leading-relaxed overflow-x-auto p-4 text-slate-300 font-mono"
+              style={{ background: "rgba(0,0,0,0.2)" }}
+            >
+              {tab.snippet}
+            </pre>
+          </div>
+
+          {/* Plain-English explanation */}
+          <div
+            className="rounded-xl p-4"
+            style={{ background: "rgba(99,102,241,0.06)", border: "1px solid rgba(99,102,241,0.12)" }}
+          >
+            <p className="text-xs font-semibold text-indigo-300 mb-1.5">What this does</p>
+            <p className="text-sm text-slate-400 leading-relaxed">{tab.explanation}</p>
+          </div>
+        </div>
+      </div>
+      </div>
+    </>
+  );
+}
+
+function JsonOption({ onSelect, setOpen, setShowDevPanel }: { onSelect: (f: string) => void; setOpen: (v: boolean) => void; setShowDevPanel: (v: boolean) => void }) {
+  return (
+    <div style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+        <button
+          onClick={() => { onSelect("json"); setOpen(false); }}
+          className="w-full text-left px-4 py-3 transition-all"
+          onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.04)")}
+          onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+        >
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-3">
+              <div
+                className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 font-mono text-xs font-bold text-emerald-400"
+                style={{ background: "rgba(16,185,129,0.12)", border: "1px solid rgba(16,185,129,0.2)" }}
+              >
+                {"{}"}
+              </div>
+              <div>
+                <p className="text-xs font-medium text-slate-200">JSON (.json)</p>
+                <p className="text-[11px] text-slate-500 mt-0.5">For Developers · CI/CD · PR Review</p>
+              </div>
+            </div>
+            {/* Open dev panel */}
+            <button
+              onClick={(e) => { e.stopPropagation(); setShowDevPanel(true); setOpen(false); }}
+              className="flex items-center gap-1 text-[11px] text-indigo-400 hover:text-indigo-300 shrink-0 px-2 py-1 rounded-lg transition-colors"
+              style={{ background: "rgba(99,102,241,0.1)", border: "1px solid rgba(99,102,241,0.2)" }}
+              title="See how to use in your pipeline"
+            >
+              How to use
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+            </button>
+          </div>
+        </button>
     </div>
   );
 }
@@ -300,6 +521,7 @@ function JsonOption({ onSelect, setOpen }: { onSelect: (f: string) => void; setO
 
 function DownloadMenu({ onSelect }: { onSelect: (format: string) => void }) {
   const [open, setOpen] = useState(false);
+  const [showDevPanel, setShowDevPanel] = useState(false);
   const [menuPos, setMenuPos] = useState({ top: 0, right: 0 });
   const btnRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -422,7 +644,7 @@ function DownloadMenu({ onSelect }: { onSelect: (format: string) => void }) {
           </button>
 
           {/* json — with developer note */}
-          <JsonOption onSelect={onSelect} setOpen={setOpen} />
+          <JsonOption onSelect={onSelect} setOpen={setOpen} setShowDevPanel={setShowDevPanel} />
 
           {/* divider before pdf */}
           <div className="mx-4 my-1" style={{ height: "1px", background: "rgba(255,255,255,0.06)" }} />
@@ -451,6 +673,12 @@ function DownloadMenu({ onSelect }: { onSelect: (format: string) => void }) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* DevPanel portal — lives here so it survives dropdown close */}
+      {showDevPanel && createPortal(
+        <DevPanel onClose={() => setShowDevPanel(false)} />,
+        document.body
       )}
     </div>
   );
@@ -820,15 +1048,169 @@ function ReadmeTab({ data }: { data: Record<string, any> }) {
   );
 }
 
+// ---- ZIP format picker ----
+
+function ZipMenu({ reports, repoUrl }: { reports: Reports; repoUrl?: string }) {
+  const [open, setOpen] = useState(false);
+  const [selected, setSelected] = useState<Record<string, boolean>>({ md: true, json: true, txt: false });
+  const [menuPos, setMenuPos] = useState({ top: 0, right: 0 });
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const name = repoName(repoUrl);
+  const noneSelected = !Object.values(selected).some(Boolean);
+
+  const handleOpen = () => {
+    if (!open && btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect();
+      setMenuPos({ top: rect.bottom + 8, right: window.innerWidth - rect.right });
+    }
+    setOpen((v) => !v);
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (
+        menuRef.current && !menuRef.current.contains(e.target as Node) &&
+        btnRef.current && !btnRef.current.contains(e.target as Node)
+      ) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  const handleDownload = async () => {
+    const zip = new JSZip();
+    const keys: TabKey[] = ["architecture", "security", "quality", "readme"];
+    for (const key of keys) {
+      const data = reports[key] as Record<string, any> | undefined;
+      if (!data) continue;
+      if (selected.md)   zip.file(`${key}.md`,   getMarkdown(key, data, repoUrl));
+      if (selected.json) zip.file(`${key}.json`,  JSON.stringify(data, null, 2));
+      if (selected.txt)  zip.file(`${key}.txt`,   getPlainText(key, data, repoUrl));
+    }
+    const blob = await zip.generateAsync({ type: "blob" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `gitwise-${name}.zip`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setOpen(false);
+  };
+
+  const formats = [
+    { key: "md",   label: "Markdown",   ext: ".md",   desc: "GitHub · Notion · VS Code" },
+    { key: "json", label: "JSON",        ext: ".json", desc: "CI/CD · PR Review · LLM" },
+    { key: "txt",  label: "Plain Text",  ext: ".txt",  desc: "Email · Simple viewers" },
+  ];
+
+  return (
+    <div className="shrink-0">
+      <button
+        ref={btnRef}
+        onClick={handleOpen}
+        className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg text-slate-400 hover:text-slate-200 transition-colors"
+        style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
+      >
+        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+        </svg>
+        {name}.zip
+        <svg
+          className={`w-3 h-3 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+          fill="none" stroke="currentColor" viewBox="0 0 24 24"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {open && (
+        <div
+          ref={menuRef}
+          className="w-60 rounded-xl overflow-hidden z-[9999]"
+          style={{
+            position: "fixed",
+            top: menuPos.top,
+            right: menuPos.right,
+            background: "linear-gradient(145deg, #0f172a 0%, #0c1428 100%)",
+            border: "1px solid rgba(255,255,255,0.1)",
+            boxShadow: "0 20px 60px rgba(0,0,0,0.7), 0 0 0 1px rgba(99,102,241,0.08)",
+            animation: "slideDown 0.15s ease-out both",
+          }}
+        >
+          {/* Header */}
+          <div className="px-4 py-2.5" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+            <p className="text-xs font-semibold text-slate-200">Download All Reports</p>
+            <p className="text-[11px] text-slate-500 mt-0.5">Choose formats to include</p>
+          </div>
+
+          {/* Format checkboxes */}
+          <div className="px-4 py-3 space-y-3">
+            {formats.map(({ key, label, ext, desc }) => (
+              <label
+                key={key}
+                className="flex items-center gap-3 cursor-pointer group"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div
+                  className="w-4 h-4 rounded flex items-center justify-center shrink-0 transition-all"
+                  style={{
+                    background: selected[key] ? "rgba(99,102,241,0.8)" : "rgba(255,255,255,0.06)",
+                    border: selected[key] ? "1px solid rgba(99,102,241,1)" : "1px solid rgba(255,255,255,0.15)",
+                  }}
+                  onClick={() => setSelected((s) => ({ ...s, [key]: !s[key] }))}
+                >
+                  {selected[key] && (
+                    <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </div>
+                <div
+                  className="flex-1"
+                  onClick={() => setSelected((s) => ({ ...s, [key]: !s[key] }))}
+                >
+                  <span className="text-xs text-slate-200 font-medium">{label} </span>
+                  <span className="text-xs text-slate-500">{ext}</span>
+                  <p className="text-[11px] text-slate-600 mt-0.5">{desc}</p>
+                </div>
+              </label>
+            ))}
+          </div>
+
+          {/* Download button */}
+          <div className="px-4 pb-4">
+            <button
+              onClick={handleDownload}
+              disabled={noneSelected}
+              className="w-full py-2 rounded-lg text-xs font-semibold transition-all"
+              style={{
+                background: noneSelected ? "rgba(255,255,255,0.05)" : "linear-gradient(135deg, #4f46e5, #2563eb)",
+                color: noneSelected ? "#475569" : "#fff",
+                cursor: noneSelected ? "not-allowed" : "pointer",
+                boxShadow: noneSelected ? "none" : "0 4px 16px rgba(79,70,229,0.35)",
+              }}
+            >
+              {noneSelected ? "Select at least one format" : `Download ${name}.zip`}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ---- Main ----
 export default function ReportTabs({ reports, repoUrl }: Props) {
   const availableTabs = TABS.filter((t) => reports[t.key]);
   const [activeTab, setActiveTab] = useState<TabKey>(availableTabs[0]?.key || "architecture");
+  const [bannerDismissed, setBannerDismissed] = useState(false);
+  const [showDevPanelFromBanner, setShowDevPanelFromBanner] = useState(false);
 
   if (availableTabs.length === 0) return null;
 
   const currentData = reports[activeTab] as Record<string, any>;
-  const zipName = repoName(repoUrl);
 
   return (
     <div className="glass rounded-2xl overflow-hidden">
@@ -877,20 +1259,49 @@ export default function ReportTabs({ reports, repoUrl }: Props) {
               triggerDownload(`gitwise-${activeTab}.json`, JSON.stringify(data, null, 2), "application/json");
             }
           }} />
-          {/* Download all as ZIP */}
-          <button
-            onClick={() => downloadAll(reports, repoUrl)}
-            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg text-slate-400 hover:text-slate-200 transition-colors shrink-0"
-            style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
-            title="Download all reports as ZIP (md + json)"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-            </svg>
-            {zipName}.zip
-          </button>
+          {/* Download all as ZIP — with format picker */}
+          <ZipMenu reports={reports} repoUrl={repoUrl} />
         </div>
       </div>
+
+      {/* Developer banner */}
+      {!bannerDismissed && (
+        <div
+          className="flex items-center gap-3 px-5 py-2.5"
+          style={{
+            background: "rgba(16,185,129,0.06)",
+            borderBottom: "1px solid rgba(16,185,129,0.12)",
+          }}
+        >
+          <div
+            className="w-6 h-6 rounded-md flex items-center justify-center shrink-0 font-mono text-xs font-bold text-emerald-400"
+            style={{ background: "rgba(16,185,129,0.12)", border: "1px solid rgba(16,185,129,0.2)" }}
+          >
+            {"{}"}
+          </div>
+          <p className="text-xs text-slate-400 flex-1">
+            <span className="text-emerald-400 font-medium">Developer? </span>
+            Export reports as JSON. Plug directly into CI/CD pipelines, PR reviews or LLM workflows.
+          </p>
+          <button
+            onClick={() => setShowDevPanelFromBanner(true)}
+            className="text-xs font-medium text-emerald-400 hover:text-emerald-300 transition-colors whitespace-nowrap shrink-0 flex items-center gap-1"
+          >
+            See how
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+          <button
+            onClick={() => setBannerDismissed(true)}
+            className="text-slate-600 hover:text-slate-400 transition-colors shrink-0"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      )}
 
       {/* Tab content */}
       <div className="p-6">
@@ -899,6 +1310,12 @@ export default function ReportTabs({ reports, repoUrl }: Props) {
         {activeTab === "quality" && <QualityTab data={currentData} />}
         {activeTab === "readme" && <ReadmeTab data={currentData} />}
       </div>
+
+      {/* DevPanel triggered from banner */}
+      {showDevPanelFromBanner && createPortal(
+        <DevPanel onClose={() => setShowDevPanelFromBanner(false)} />,
+        document.body
+      )}
     </div>
   );
 }

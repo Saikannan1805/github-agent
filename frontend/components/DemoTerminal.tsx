@@ -18,27 +18,70 @@ const DEMO_LINES = [
   { type: "done", text: "Analysis complete ✓" },
 ];
 
-const LINE_DELAY = 700;
-const LOOP_PAUSE = 3500;
+const LINE_DELAY  = 700;
+const LOOP_PAUSE  = 3500;
+const LOG_VPAD    = 32;   // p-4 = 16px top + 16px bottom
+const GAP_PX      = 6;    // space-y-1.5 = 0.375rem
+const LH_RATIO    = 1.5;
+// 13 lines + 1 cursor = 14 items, 13 gaps
+// fontSize = (available − 13×6) / (14 × 1.5) = (available − 78) / 21
+const TOTAL_ITEMS = DEMO_LINES.length + 1;
+const TOTAL_GAPS  = TOTAL_ITEMS - 1;
 
 export default function DemoTerminal() {
   const [visibleCount, setVisibleCount] = useState(0);
-  const logEndRef = useRef<HTMLDivElement>(null);
-  const logContainerRef = useRef<HTMLDivElement>(null);
+  const [fontSize, setFontSize] = useState(13); // overridden by ResizeObserver
+  const pausedRef    = useRef(false);
+  const animTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const logRef       = useRef<HTMLDivElement>(null);
+
+  // Measure the log div's actual rendered height and back-calculate the exact
+  // font size so all TOTAL_ITEMS fit with zero leftover space.
+  useEffect(() => {
+    const el = logRef.current;
+    if (!el) return;
+    const calc = () => {
+      const h = el.clientHeight;
+      if (h === 0) return;
+      const available = h - LOG_VPAD;
+      const fs = (available - TOTAL_GAPS * GAP_PX) / (TOTAL_ITEMS * LH_RATIO);
+      setFontSize(Math.max(8, fs));
+    };
+    calc();
+    const obs = new ResizeObserver(calc);
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
 
   useEffect(() => {
+    let scrollTimer: ReturnType<typeof setTimeout>;
+    const onScroll = () => {
+      pausedRef.current = true;
+      clearTimeout(scrollTimer);
+      scrollTimer = setTimeout(() => { pausedRef.current = false; }, 200);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      clearTimeout(scrollTimer);
+    };
+  }, []);
+
+  useEffect(() => {
+    const clearAnim = () => clearTimeout(animTimerRef.current);
     if (visibleCount > DEMO_LINES.length) {
-      const t = setTimeout(() => setVisibleCount(0), LOOP_PAUSE);
-      return () => clearTimeout(t);
+      animTimerRef.current = setTimeout(() => setVisibleCount(0), LOOP_PAUSE);
+      return clearAnim;
     }
-    const t = setTimeout(() => setVisibleCount((v) => v + 1), LINE_DELAY);
-    return () => clearTimeout(t);
-  }, [visibleCount]);
-
-
-  useEffect(() => {
-    const container = logContainerRef.current;
-    if (container) container.scrollTop = container.scrollHeight;
+    const tick = () => {
+      if (pausedRef.current) {
+        animTimerRef.current = setTimeout(tick, 100);
+        return;
+      }
+      setVisibleCount((v) => v + 1);
+    };
+    animTimerRef.current = setTimeout(tick, LINE_DELAY);
+    return clearAnim;
   }, [visibleCount]);
 
   const isDone = visibleCount >= DEMO_LINES.length &&
@@ -51,10 +94,13 @@ export default function DemoTerminal() {
   const progress = isDone ? 100 : Math.round((completedSteps / stepCount) * 100);
 
   return (
-    <div className="glass rounded-2xl overflow-hidden h-full" style={{ boxShadow: "0 8px 40px rgba(0,0,0,0.5), 0 0 0 1px rgba(99,102,241,0.12), inset 0 1px 0 rgba(255,255,255,0.04)" }}>
+    <div
+      className="glass rounded-2xl overflow-hidden flex-1 flex flex-col"
+      style={{ boxShadow: "0 8px 40px rgba(0,0,0,0.5), 0 0 0 1px rgba(99,102,241,0.12), inset 0 1px 0 rgba(255,255,255,0.04)" }}
+    >
       {/* Terminal header */}
       <div
-        className="px-5 py-3 flex items-center gap-2.5"
+        className="px-5 py-3 flex items-center gap-2.5 shrink-0"
         style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}
       >
         <div className="flex gap-1.5">
@@ -81,7 +127,7 @@ export default function DemoTerminal() {
       </div>
 
       {/* Progress bar */}
-      <div className="px-5 py-2.5" style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+      <div className="px-5 py-2.5 shrink-0" style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
         <div className="flex items-center justify-between mb-1.5">
           <span className="text-xs text-slate-600">Progress</span>
           <span className="text-xs font-mono text-slate-500">{progress}%</span>
@@ -99,8 +145,12 @@ export default function DemoTerminal() {
         </div>
       </div>
 
-      {/* Log lines */}
-      <div ref={logContainerRef} className="p-5 font-mono text-xs space-y-2 overflow-y-auto" style={{ height: "calc(100% - 90px)", minHeight: "200px" }}>
+      {/* Log lines — font size is calculated to exactly fill this div */}
+      <div
+        ref={logRef}
+        className="p-4 font-mono space-y-1.5 overflow-hidden flex-1 min-h-0"
+        style={{ fontSize: `${fontSize}px`, lineHeight: LH_RATIO }}
+      >
         {DEMO_LINES.slice(0, visibleCount).map((line, i) => (
           <div key={i} className="animate-slide-in">
             {line.type === "cmd" && (
@@ -120,7 +170,6 @@ export default function DemoTerminal() {
           </div>
         ))}
         {!isDone && <span className="text-slate-600 blink">█</span>}
-        <div ref={logEndRef} />
       </div>
     </div>
   );

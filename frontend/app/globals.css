@@ -24,6 +24,7 @@ body {
   font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
 }
 
 
@@ -163,6 +164,16 @@ body {
 }
 .animate-fade-in { animation: fadeIn 0.4s ease-out; }
 
+@keyframes devArrowBob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(4px); }
+}
+
+@keyframes devPillGlow {
+  0%, 100% { box-shadow: 0 0 12px rgba(16,185,129,0.08); }
+  50% { box-shadow: 0 0 22px rgba(16,185,129,0.18); }
+}
+
 @keyframes panelSlideUp {
   from { opacity: 0; transform: translateY(40px) scale(0.97); }
   to   { opacity: 1; transform: translateY(0)   scale(1); }
@@ -185,4 +196,65 @@ body {
 .stagger-4 { animation: staggerIn 0.4s 0.26s cubic-bezier(0.16,1,0.3,1) both; }
 .stagger-5 { animation: staggerIn 0.4s 0.33s cubic-bezier(0.16,1,0.3,1) both; }
 
+@keyframes orbPulse {
+  0%, 100% { transform: scale(1); opacity: 0.6; }
+  50% { transform: scale(1.5); opacity: 0; }
+}
+
+@keyframes floatOrb1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33%       { transform: translate(28px, -20px) scale(1.05); }
+  66%       { transform: translate(-14px, 14px) scale(0.97); }
+}
+@keyframes floatOrb2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33%       { transform: translate(-20px, 14px) scale(1.04); }
+  66%       { transform: translate(16px, -26px) scale(0.98); }
+}
+
+@keyframes shimmerPulse {
+  0%, 100% { opacity: 0.6; }
+  50%       { opacity: 1; }
+}
+.shimmer-text {
+  background: linear-gradient(90deg, #818cf8 0%, #c7d2fe 50%, #818cf8 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: shimmerPulse 3s ease-in-out infinite;
+  will-change: opacity;
+}
+
+@keyframes chevronCascade {
+  0%, 100% { opacity: 0.25; transform: translateY(0); }
+  50%       { opacity: 1;    transform: translateY(6px); }
+}
+
+@keyframes dotBreathe {
+  0%, 100% { transform: scale(1); opacity: 0.8; }
+  50%       { transform: scale(1.5); opacity: 1; }
+}
+
+@keyframes spinGradient {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+@keyframes fillProgress {
+  from { width: 0%; }
+  to   { width: 100%; }
+}
+
+.sweep-underline { position: relative; }
+.sweep-underline::after {
+  content: '';
+  position: absolute;
+  bottom: -3px;
+  left: 0;
+  width: 0;
+  height: 1px;
+  background: linear-gradient(to right, #6366f1, #8b5cf6);
+  transition: width 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.sweep-underline:hover::after { width: 100%; }
 
