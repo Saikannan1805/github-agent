@@ -375,16 +375,17 @@ export default function AboutPanel({ onClose }: Props) {
                   {/* Name + Email */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {[
-                      { label: "Name", placeholder: "Your name", value: name, onChange: setName, type: "text" },
-                      { label: "Email", placeholder: "your@email.com", value: email, onChange: setEmail, type: "email" },
-                    ].map(({ label, placeholder, value, onChange, type }) => (
+                      { label: "Name", placeholder: "Your name", value: name, onChange: setName, type: "text", required: false },
+                      { label: "Email", placeholder: "your@email.com", value: email, onChange: setEmail, type: "email", required: true },
+                    ].map(({ label, placeholder, value, onChange, type, required }) => (
                       <div key={label} className="space-y-1.5">
-                        <p className="text-xs text-slate-500">{label} <span className="text-slate-600">(optional)</span></p>
+                        <p className="text-xs text-slate-500">{label} {!required && <span className="text-slate-600">(optional)</span>}</p>
                         <input
                           type={type}
                           value={value}
                           onChange={(e) => onChange(e.target.value)}
                           placeholder={placeholder}
+                          required={required}
                           className="w-full rounded-xl px-4 py-2.5 text-sm text-slate-300 placeholder-slate-600 outline-none transition-all duration-200"
                           style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
                           onFocus={(e) => { e.currentTarget.style.border = "1px solid rgba(99,102,241,0.4)"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(99,102,241,0.1)"; }}
