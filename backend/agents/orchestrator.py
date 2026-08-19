@@ -33,7 +33,7 @@ from services.vector_store import upsert_chunks
 load_dotenv()
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-MODEL_NAME = "llama-3.3-70b-versatile"
+MODEL_NAME = "openai/gpt-oss-20b"
 
 # ---------------------------------------------------------------------------
 # Global session stores
@@ -95,6 +95,7 @@ def _llm() -> ChatGroq:
         model=MODEL_NAME,
         temperature=0.2,
         max_tokens=4096,
+        model_kwargs={"reasoning_effort": "low"},
     )
 
 
