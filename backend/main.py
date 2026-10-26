@@ -100,7 +100,7 @@ async def sse_generator(session_id: str) -> AsyncGenerator[str, None]:
         yield _sse_event({"type": "error", "data": {"message": "Session not found"}})
         return
 
-    timeout = 600  # max 10 minutes, wall-clock
+    timeout = 1800  # max 30 minutes, wall-clock — local embedding on Render free tier runs ~2 chunks/s
     ping_interval = 15
     poll_interval = 0.3
     started = last_ping = time.monotonic()

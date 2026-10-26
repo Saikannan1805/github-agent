@@ -409,7 +409,7 @@ Keep-alive pings (`: ping`) sent every 15 seconds to prevent proxy timeouts.
 | Max files per repo | 500 | Memory + embedding cost |
 | Max lines of code | 100,000 | LLM context |
 | Max file size | 500 KB | Embedding token limit |
-| SSE stream timeout | 10 minutes | Avoid zombie sessions |
+| SSE stream timeout | 30 minutes | Avoid zombie sessions (large repos embed slowly on Render free tier) |
 | Session TTL | 2 hours | Supabase storage |
 | LLM `max_tokens` | 4,096 | Groq output limit |
 | Embedding batch size | 1 (local) / 64 (HF) | Peak RAM on Render free tier / HF rate limit |
