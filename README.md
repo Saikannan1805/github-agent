@@ -64,14 +64,15 @@ After analysis, a **RAG Chat** interface lets you ask natural-language questions
 | langchain-groq | 0.2.1 | Groq API client |
 | Pydantic | 2.10 | Request/response validation |
 | GitPython | 3.1 | Git operations |
-| httpx | 0.27 | Async HTTP — HuggingFace calls |
+| httpx | 0.27 | Async HTTP — optional HuggingFace API calls |
+| fastembed | 0.9 | Local ONNX embeddings — no torch, no API credits |
 | python-dotenv | 1.0 | Environment variable loading |
 
 ### AI / ML
 | Technology | Purpose |
 |---|---|
 | Groq API | LLM inference — `llama-3.3-70b-versatile` |
-| HuggingFace Inference API | Text embeddings — `sentence-transformers/all-MiniLM-L6-v2` (384 dimensions) |
+| HuggingFace Hub | Model download for `sentence-transformers/all-MiniLM-L6-v2` (384 dimensions), run locally via fastembed |
 
 ### Database & Infrastructure
 | Service | Purpose |
@@ -98,14 +99,14 @@ Browser
   ├─ POST /analyze  ──────────────────────→  FastAPI
   │                                              │
   ├─ GET  /stream/{session_id}  (SSE) ←──────   ├─ clone_node        (GitPython, shallow clone)
-  │   · step events                             ├─ embed_node        (HF API → Supabase pgvector)
+  │   · step events                             ├─ embed_node        (fastembed → Supabase pgvector)
   │   · log events                              ├─ architecture_node  (static analysis + Groq LLM)
   │   · progress events                         ├─ security_node      (regex scan + Groq LLM)
   │   · report events (4× JSON blobs)           ├─ quality_node       (metrics + Groq LLM)
   │   · done event                              └─ readme_node        (Groq LLM)
   │
   └─ POST /chat  ─────────────────────────→  chat_with_repo()
-                                               ├─ embed question (HF API)
+                                               ├─ embed question (fastembed)
                                                ├─ similarity_search (pgvector cosine)
                                                ├─ filepath_search (keyword match)
                                                └─ Groq LLM with context
@@ -122,9 +123,10 @@ Browser
 
 #### 2. `embed_node`
 - Splits files into overlapping chunks via the `chunker` service
-- Sends chunks to the HuggingFace Inference API in batches of 64
+- Embeds chunks in-process with fastembed (ONNX `all-MiniLM-L6-v2`, batch size 1 to keep peak RAM ~400 MB)
+- Set `EMBEDDINGS_BACKEND=hf` to use the HuggingFace Inference API instead (batches of 64)
 - Stores `(session_id, repo_url, file_path, content, embedding, start_line, end_line)` rows in Supabase `code_chunks`
-- Retries on HTTP 429 / 503 with exponential backoff: 2 → 5 → 10 → 20 s
+- HF mode retries on HTTP 429 / 503 with exponential backoff: 2 → 5 → 10 → 20 s
 
 #### 3. `architecture_node`
 - Static analysis: detects languages (by extension), frameworks (keyword patterns), design patterns, entry points, folder tree
@@ -150,7 +152,7 @@ Browser
 
 ### RAG Chat
 
-1. Embed the question using the HF Inference API
+1. Embed the question with the same local model
 2. **Semantic search** — cosine similarity via `match_code_chunks` Supabase RPC (top 12 results)
 3. **Filepath keyword search** — exact/partial path matching (top 4 results), stop words filtered
 4. Merge and deduplicate, preferring source code over docs
@@ -179,7 +181,7 @@ github-agent/
 │   ├── services/
 │   │   ├── cloner.py              # Shallow git clone + file collection + size limits
 │   │   ├── chunker.py             # Code → overlapping text chunks
-│   │   ├── embedder.py            # HuggingFace Inference API, batched, retry logic
+│   │   ├── embedder.py            # fastembed (default) or HuggingFace Inference API
 │   │   └── vector_store.py        # Supabase pgvector — upsert, search, delete
 │   ├── reports/
 │   │   ├── architecture.py        # Language/framework/pattern detection, folder tree
@@ -220,7 +222,7 @@ github-agent/
 - **Node.js 18+** and npm
 - [Groq](https://console.groq.com) — free API key
 - [Supabase](https://supabase.com) — free project (URL + anon key)
-- [HuggingFace](https://huggingface.co/settings/tokens) — free Inference API token
+- [HuggingFace](https://huggingface.co/settings/tokens) — optional, only if you set `EMBEDDINGS_BACKEND=hf`
 
 ### 1. Clone
 
@@ -301,7 +303,9 @@ Edit `backend/.env`:
 GROQ_API_KEY=gsk_...                    # console.groq.com → API Keys
 SUPABASE_URL=https://xxx.supabase.co    # Supabase → Settings → API → Project URL
 SUPABASE_KEY=eyJ...                     # Supabase → Settings → API → anon/public key
-HUGGINGFACE_API_KEY=hf_...              # huggingface.co → Settings → Access Tokens
+# Optional — embeddings run locally by default; set both to use the HF Inference API
+# EMBEDDINGS_BACKEND=hf
+# HUGGINGFACE_API_KEY=hf_...            # huggingface.co → Settings → Access Tokens
 
 # Optional — raises GitHub rate limit from 60 to 5,000 req/hr
 GITHUB_TOKEN=ghp_...
@@ -387,7 +391,7 @@ Keep-alive pings (`: ping`) sent every 15 seconds to prevent proxy timeouts.
 2. **Root Directory:** `backend`
 3. **Build command:** `pip install -r requirements.txt`
 4. **Start command:** `uvicorn main:app --host 0.0.0.0 --port $PORT`
-5. Add environment variables: `GROQ_API_KEY`, `SUPABASE_URL`, `SUPABASE_KEY`, `HUGGINGFACE_API_KEY`, `GITHUB_TOKEN`
+5. Add environment variables: `GROQ_API_KEY`, `SUPABASE_URL`, `SUPABASE_KEY`, `GITHUB_TOKEN`
 
 ### Frontend — Vercel
 
@@ -408,7 +412,7 @@ Keep-alive pings (`: ping`) sent every 15 seconds to prevent proxy timeouts.
 | SSE stream timeout | 10 minutes | Avoid zombie sessions |
 | Session TTL | 2 hours | Supabase storage |
 | LLM `max_tokens` | 4,096 | Groq output limit |
-| Embedding batch size | 64 | HuggingFace rate limit |
+| Embedding batch size | 1 (local) / 64 (HF) | Peak RAM on Render free tier / HF rate limit |
 | Chat context chunks | 5 | Token budget |
 | Repo host | GitHub only | Auth URL substitution |
 
@@ -422,8 +426,8 @@ Gives a typed state that flows through all nodes, easy per-node error isolation,
 **SSE over WebSockets**
 SSE is unidirectional (server → client), which is all pipeline streaming needs. Simpler, HTTP/1.1 compatible, works on Render without any special upgrade handling.
 
-**HuggingFace Inference API over local sentence-transformers**
-Render's free tier has limited RAM. Running sentence-transformers locally loads a ~90 MB model on startup. The HF Inference API offloads that entirely.
+**Local fastembed over the HuggingFace Inference API**
+The HF Inference API's free credits run out (HTTP 402), which breaks every analysis. fastembed runs the same `all-MiniLM-L6-v2` model via ONNX runtime — no torch, identical vectors — and with batch size 1 and the CPU memory arena disabled the whole backend peaks around 400 MB, inside Render's 512 MB free tier.
 
 **Supabase pgvector over a dedicated vector DB**
 The free tier includes pgvector with full SQL. No extra service, minimal stack, and hybrid queries (vector similarity + `session_id` filter) in a single RPC call.
