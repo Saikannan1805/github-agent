@@ -2,6 +2,7 @@ import asyncio
 import logging
 import os
 import threading
+from typing import Awaitable, Callable
 
 import httpx
 from dotenv import load_dotenv
@@ -72,7 +73,12 @@ async def _post_with_retry(client: httpx.AsyncClient, batch: list[str]) -> list[
     raise last_error or RuntimeError("HF embedding failed after all retries")
 
 
-def _encode_local(texts: list[str]) -> list[list[float]]:
+LOCAL_PROGRESS_SLICE = 16  # texts per worker-thread call, so progress can be reported between slices
+
+ProgressCallback = Callable[[int, int], Awaitable[None]]  # (done, total)
+
+
+def _load_local_model():
     global _local_model
     with _local_model_lock:
         if _local_model is None:
@@ -80,7 +86,19 @@ def _encode_local(texts: list[str]) -> list[list[float]]:
 
             logger.info(f"Loading local embedding model {LOCAL_MODEL_NAME}")
             _local_model = TextEmbedding(LOCAL_MODEL_NAME, threads=1, enable_cpu_mem_arena=False)
-    return [e.tolist() for e in _local_model.embed(texts, batch_size=LOCAL_BATCH_SIZE)]
+    return _local_model
+
+
+def _encode_local(texts: list[str]) -> list[list[float]]:
+    model = _load_local_model()
+    return [e.tolist() for e in model.embed(texts, batch_size=LOCAL_BATCH_SIZE)]
+
+
+async def warm_up() -> None:
+    """Download/load the local model ahead of the first analysis (no-op in HF mode)."""
+    if EMBEDDINGS_BACKEND == "local":
+        await asyncio.to_thread(_load_local_model)
+        logger.info("Local embedding model ready")
 
 
 async def embed_text(text: str) -> list[float]:
@@ -89,18 +107,28 @@ async def embed_text(text: str) -> list[float]:
     return results[0]
 
 
-async def embed_texts(texts: list[str], batch_size: int = 64) -> list[list[float]]:
+async def embed_texts(
+    texts: list[str],
+    batch_size: int = 64,
+    on_progress: ProgressCallback | None = None,
+) -> list[list[float]]:
     """Embed a list of strings (locally or via HuggingFace Inference API, per EMBEDDINGS_BACKEND)."""
-    if EMBEDDINGS_BACKEND == "local":
-        return await asyncio.to_thread(_encode_local, texts)
-
     results: list[list[float]] = []
+
+    if EMBEDDINGS_BACKEND == "local":
+        for i in range(0, len(texts), LOCAL_PROGRESS_SLICE):
+            results.extend(await asyncio.to_thread(_encode_local, texts[i : i + LOCAL_PROGRESS_SLICE]))
+            if on_progress:
+                await on_progress(len(results), len(texts))
+        return results
 
     async with httpx.AsyncClient(timeout=60) as client:
         for i in range(0, len(texts), batch_size):
             batch = texts[i : i + batch_size]
             embeddings = await _post_with_retry(client, batch)
             results.extend(embeddings)
+            if on_progress:
+                await on_progress(len(results), len(texts))
 
     return results
 
