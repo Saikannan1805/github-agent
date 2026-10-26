@@ -5,6 +5,7 @@ GitHub Repository Analyzer — FastAPI Backend
 import asyncio
 import json
 import logging
+import time
 import uuid
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
@@ -29,6 +30,7 @@ from agents.orchestrator import (
     get_status,
     run_analysis,
 )
+from services.embedder import warm_up as warm_up_embeddings
 
 
 # ---------------------------------------------------------------------------
@@ -54,8 +56,11 @@ async def _cleanup_loop() -> None:
 async def lifespan(app: FastAPI):
     # Start TTL-based session cleanup loop
     cleanup_task = asyncio.create_task(_cleanup_loop())
+    # Load the embedding model in the background so the first analysis doesn't stall on the download
+    warm_task = asyncio.create_task(warm_up_embeddings())
     yield
     cleanup_task.cancel()
+    warm_task.cancel()
 
 
 app = FastAPI(
@@ -95,26 +100,26 @@ async def sse_generator(session_id: str) -> AsyncGenerator[str, None]:
         yield _sse_event({"type": "error", "data": {"message": "Session not found"}})
         return
 
-    timeout = 600  # max 10 minutes
-    elapsed = 0
+    timeout = 600  # max 10 minutes, wall-clock
+    ping_interval = 15
     poll_interval = 0.3
+    started = last_ping = time.monotonic()
 
-    while elapsed < timeout:
+    while time.monotonic() - started < timeout:
         try:
             event = queue.get_nowait()
             yield _sse_event(event)
             if event["type"] in ("done", "error"):
                 await asyncio.sleep(0.3)  # let browser receive the event before stream closes
-                break
+                return
         except asyncio.QueueEmpty:
             await asyncio.sleep(poll_interval)
-            elapsed += poll_interval
             # Send keep-alive ping every 15s
-            if int(elapsed) % 15 == 0:
+            if time.monotonic() - last_ping >= ping_interval:
+                last_ping = time.monotonic()
                 yield ": ping\n\n"
 
-    if elapsed >= timeout:
-        yield _sse_event({"type": "error", "data": {"message": "Analysis timed out"}})
+    yield _sse_event({"type": "error", "data": {"message": "Analysis timed out"}})
 
 
 def _sse_event(event: dict) -> str:

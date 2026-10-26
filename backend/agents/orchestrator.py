@@ -159,7 +159,18 @@ async def embed_node(state: AnalysisState) -> dict:
         await _emit(session_id, "log", {"message": f"Created {len(chunks)} chunks for embedding"})
 
         texts = [c["content"] for c in chunks]
-        embeddings = await embed_texts(texts)
+        last_logged_decile = 0
+
+        async def on_progress(done: int, total: int) -> None:
+            # Keep the UI moving during long embeds; 100% is reserved for after the Supabase upsert
+            nonlocal last_logged_decile
+            await _emit(session_id, "progress", {"step": "embedding", "percent": min(95, done * 95 // total)})
+            decile = done * 10 // total
+            if decile > last_logged_decile:
+                last_logged_decile = decile
+                await _emit(session_id, "log", {"message": f"Embedded {done}/{total} chunks"})
+
+        embeddings = await embed_texts(texts, on_progress=on_progress)
 
         await _emit(session_id, "log", {"message": "Storing embeddings in Supabase pgvector..."})
         await upsert_chunks(chunks, embeddings, session_id, state["repo_url"])
