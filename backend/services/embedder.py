@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import threading
 
 import httpx
 from dotenv import load_dotenv
@@ -13,11 +14,13 @@ HF_API_KEY = os.getenv("HUGGINGFACE_API_KEY", "")
 HF_API_URL = "https://router.huggingface.co/hf-inference/models/sentence-transformers/all-MiniLM-L6-v2/pipeline/feature-extraction"
 EMBED_DIM = 384
 
-# "hf" (default) uses the HuggingFace Inference API; "local" runs the same model
-# in-process via sentence-transformers (pip install sentence-transformers)
-EMBEDDINGS_BACKEND = os.getenv("EMBEDDINGS_BACKEND", "hf").lower()
+# "local" (default) runs the model in-process via fastembed (ONNX, no torch — small
+# enough for Render's free tier); "hf" uses the HuggingFace Inference API instead
+EMBEDDINGS_BACKEND = os.getenv("EMBEDDINGS_BACKEND", "local").lower()
 LOCAL_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
+LOCAL_BATCH_SIZE = 1  # peak RAM grows steeply with batch size (~+30 MB at 1 vs ~+230 MB at 8)
 _local_model = None
+_local_model_lock = threading.Lock()  # concurrent analyses must not load the model twice
 
 MAX_RETRIES = 4
 RETRY_DELAYS = [2, 5, 10, 20]  # seconds between retries
@@ -69,26 +72,27 @@ async def _post_with_retry(client: httpx.AsyncClient, batch: list[str]) -> list[
     raise last_error or RuntimeError("HF embedding failed after all retries")
 
 
-def _encode_local(texts: list[str], batch_size: int) -> list[list[float]]:
+def _encode_local(texts: list[str]) -> list[list[float]]:
     global _local_model
-    if _local_model is None:
-        from sentence_transformers import SentenceTransformer
+    with _local_model_lock:
+        if _local_model is None:
+            from fastembed import TextEmbedding
 
-        logger.info(f"Loading local embedding model {LOCAL_MODEL_NAME}")
-        _local_model = SentenceTransformer(LOCAL_MODEL_NAME)
-    return _local_model.encode(texts, batch_size=batch_size).tolist()
+            logger.info(f"Loading local embedding model {LOCAL_MODEL_NAME}")
+            _local_model = TextEmbedding(LOCAL_MODEL_NAME, threads=1, enable_cpu_mem_arena=False)
+    return [e.tolist() for e in _local_model.embed(texts, batch_size=LOCAL_BATCH_SIZE)]
 
 
 async def embed_text(text: str) -> list[float]:
-    """Embed a single string via HuggingFace Inference API."""
+    """Embed a single string."""
     results = await embed_texts([text])
     return results[0]
 
 
 async def embed_texts(texts: list[str], batch_size: int = 64) -> list[list[float]]:
-    """Embed a list of strings in batches via HuggingFace Inference API."""
+    """Embed a list of strings (locally or via HuggingFace Inference API, per EMBEDDINGS_BACKEND)."""
     if EMBEDDINGS_BACKEND == "local":
-        return await asyncio.to_thread(_encode_local, texts, batch_size)
+        return await asyncio.to_thread(_encode_local, texts)
 
     results: list[list[float]] = []
 
